@@ -1,14 +1,14 @@
 CC=gcc
 CFLAGS=-Wall -ggdb
 
-assign2: msgq.o threads.o
-	$(CC) $(CFLAGS) msgq.o threads.o -o assign2
+assign2: main.o msgq.o
+	$(CC) $(CFLAGS) main.o msgq.o threads.h -o assign2
 
 clean:
 	rm -f *.o *.bak assign2
 
+main.o:
+	$(CC) $(CFLAGS) -O -c main.c
+
 msgq.o:
 	$(CC) $(CFLAGS) -O -c msgq.c
-
-threads.o:
-	$(CC) $(CFLAGS) -O -c threads.h
