@@ -14,20 +14,29 @@ int main(int argc, char * argv[])
     int id;
     struct msgbuf msg;
     struct msgbuf rcv;
+	char * filename;
+	FILE * file;
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        fprintf(stderr, "Usage: showmsg keyval\n");
+        fprintf(stderr, "Usage: showmsg keyval filename\n");
     }
 
     mkey = (key_t) atoi(argv[1]);
+	filename = argv[2];
+
+	// Open file
+	if (!(file = open_file(filename, "r")))
+	{
+		exit(5);
+	}
     
     // Init structures
     memset(&msg, 0, sizeof(struct msgbuf));
     memset(&rcv, 0, sizeof(struct msgbuf));
 
     msg.mtype = 1;
-    strcpy(msg.mtext, "This is a test message");
+	fgets(msg.mtext, MSGSIZE, file);
 
     // Open message queue
     id = open_queue(mkey);
@@ -40,6 +49,7 @@ int main(int argc, char * argv[])
 	if (send_message(id, &msg) == -1)
 	{
 		remove_queue(id);
+		close_file(file);
 		exit(2);
 	}
 
@@ -47,6 +57,7 @@ int main(int argc, char * argv[])
 	if (read_message(id, msg.mtype, &rcv) == -1)
 	{
 		remove_queue(id);
+		close_file(file);
 		exit(3);
 	}
 
@@ -55,8 +66,10 @@ int main(int argc, char * argv[])
     // Close message queue
     if (remove_queue(id) == -1)
     {
+		close_file(file);
         exit(4);
     }
 
+	close_file(file);
     exit(0);
 }

@@ -14,7 +14,7 @@ FILE * open_file(const char * filename, const char * flags)
 }
 
 
-int close_file(const FILE * fp)
+int close_file(FILE * fp)
 {
     int result;
 
