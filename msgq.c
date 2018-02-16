@@ -2,7 +2,7 @@
 
 pthread_mutex_t mutex;
 
-int open_queue(key_t keyval)
+int open_queue(const key_t keyval)
 {
     int qid;
 
@@ -14,7 +14,7 @@ int open_queue(key_t keyval)
 }
 
 
-int send_message(int msg_qid, struct msgbuf * qbuf)
+int send_message(const int msg_qid, struct msgbuf * qbuf)
 {
     int result;
     int length;
@@ -29,7 +29,7 @@ int send_message(int msg_qid, struct msgbuf * qbuf)
 }
 
 
-int read_message(int qid, long type, struct msgbuf * qbuf)
+int read_message(const int qid, const long type, struct msgbuf * qbuf)
 {
     int result;
     int length;
@@ -44,7 +44,7 @@ int read_message(int qid, long type, struct msgbuf * qbuf)
 }
 
 
-int remove_queue(int qid)
+int remove_queue(const int qid)
 {
 	int result;
 

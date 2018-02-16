@@ -12,3 +12,6 @@ main.o:
 
 msgq.o:
 	$(CC) $(CFLAGS) -O -c msgq.c
+
+files.o:
+	$(CC) $(CFLAGS) -O -c files.c

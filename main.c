@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "msgq.h"
+#include "files.h"
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
