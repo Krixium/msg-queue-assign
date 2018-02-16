@@ -21,6 +21,7 @@ int main(int argc, char * argv[])
     if (argc != 4)
     {
         fprintf(stderr, "Usage: showmsg keyval inFilename outFilename\n");
+		exit(666);
     }
 
     mkey = (key_t) atoi(argv[1]);
