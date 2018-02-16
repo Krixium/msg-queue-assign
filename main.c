@@ -1,8 +1,11 @@
-#include <stdjio.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "msgq.h"
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char * argv[])
 {
@@ -13,14 +16,14 @@ int main(int argc, char * argv[])
 
     if (argc != 2)
     {
-        fprintf(stderr, "Usage: showmsg keyavl\n");
+        fprintf(stderr, "Usage: showmsg keyval\n");
     }
 
     mkey = (key_t) atoi(argv[1]);
     
     // Init structures
-    memset(&msg, 0, sizeof(msgbuf));
-    memset(&dest, 0, sizeof(msgbuf));
+    memset(&msg, 0, sizeof(struct msgbuf));
+    memset(&rcv, 0, sizeof(struct msgbuf));
 
     msg.mtype = 1;
     strcpy(msg.mtext, "This is a test message");
@@ -32,21 +35,21 @@ int main(int argc, char * argv[])
         exit(1);
     }
 
-    // Write
-    if (send_message(id, msg); == -1)
-    {
-        remove_queue(id);
-        exit(2);
-    }
+	// Write
+	if (send_message(id, &msg) == -1)
+	{
+		remove_queue(id);
+		exit(2);
+	}
 
-    // Read
-    if (read_message(id, msg.mtype, &dest) == -1)
-    {
-        remove_queue(id);
-        exit(3);
-    }
+	// Read
+	if (read_message(id, msg.mtype, &rcv) == -1)
+	{
+		remove_queue(id);
+		exit(3);
+	}
 
-    fprintf(stdout, "Message: %s\n", dest.mtext);
+	fprintf(stdout, "Message: %s\n", rcv.mtext);
 
     // Close message queue
     if (remove_queue(id) == -1)

@@ -1,14 +1,13 @@
 #include "msgq.h"
 
+pthread_mutex_t mutex;
+
 int open_queue(key_t keyval)
 {
     int qid;
 
     pthread_mutex_lock(&mutex);
-    if ((qid = msgget(keyval, IPC_CREAT | 0660)) == -1)
-    {
-        return -1;
-    }
+	qid = msgget(keyval, IPC_CREAT | 0660);
     pthread_mutex_unlock(&mutex);
 
     return qid;
@@ -20,13 +19,10 @@ int send_message(int msg_qid, struct msgbuf * qbuf)
     int result;
     int length;
 
-    length = sizeof(struct msgbuf) - sizeof(long):
+    length = sizeof(struct msgbuf) - sizeof(long);
 
     pthread_mutex_lock(&mutex);
-    if ((result = msgsnd(msg_qid, qbuf, length, 0)) == -1)
-    {
-        return -1;
-    }
+	result = msgsnd(msg_qid, qbuf, length, 0);
     pthread_mutex_unlock(&mutex);
 
     return result;
@@ -40,10 +36,9 @@ int read_message(int qid, long type, struct msgbuf * qbuf)
 
     length = sizeof(struct msgbuf) - sizeof(long);
 
-    if ((result = msgrcv(qid, qbuf, length, type, 0)) == -1)
-    {
-        return -1;
-    }
+	pthread_mutex_lock(&mutex);
+    result = msgrcv(qid, qbuf, length, type, 0);
+	pthread_mutex_unlock(&mutex);
 
     return result;
 }
@@ -51,10 +46,11 @@ int read_message(int qid, long type, struct msgbuf * qbuf)
 
 int remove_queue(int qid)
 {
-    if (msgctl(qid, IPC_RMID, 0) == -1)
-    {
-        return -1;
-    }
+	int result;
 
-    return 0;
+	pthread_mutex_lock(&mutex);
+    result = msgctl(qid, IPC_RMID, 0);
+	pthread_mutex_unlock(&mutex);
+
+    return result;
 }
