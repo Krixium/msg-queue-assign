@@ -9,14 +9,14 @@
 
 #include "threads.h"
 
-#define msgbuf {
+struct msgbuf {
     long mtype;
     char mtext[MSGSIZE];
-} message;
+} msg;
 
 int open_queue(key_t keyval);
-int send_message(int msg_qid, struct msgbuf * qbuf);
-int read_message(int qid, long type, struct msgbuf * qbuf);
+int send_message(int msg_qid, struct msgbuf *qbuf);
+int read_message(int qid, long type, struct msgbuf *qbuf);
 int remove_queue(int qid);
 
 #endif
