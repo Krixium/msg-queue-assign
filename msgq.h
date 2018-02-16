@@ -14,9 +14,9 @@ struct msgbuf {
     char mtext[MSGSIZE];
 } msg;
 
-int open_queue(key_t keyval);
-int send_message(int msg_qid, struct msgbuf *qbuf);
-int read_message(int qid, long type, struct msgbuf *qbuf);
-int remove_queue(int qid);
+int open_queue(const key_t keyval);
+int send_message(const int msg_qid, struct msgbuf *qbuf);
+int read_message(const int qid, const long type, struct msgbuf *qbuf);
+int remove_queue(const int qid);
 
 #endif
