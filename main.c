@@ -1,91 +1,51 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "main.h"
 
-#include "msgq.h"
-#include "files.h"
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char * argv[])
 {
-    int mkey;
-    int id;
-    struct msgbuf msg;
-    struct msgbuf rcv;
-	char * filename;
-	FILE * inFile;
-	FILE * outFile;
+	int mkey;
+	int qid;
 
-    if (argc != 4)
-    {
-        fprintf(stderr, "Usage: showmsg keyval inFilename outFilename\n");
-		exit(666);
-    }
-
-    mkey = (key_t) atoi(argv[1]);
-	
-	// Open files
-	filename = argv[2];
-	if (!(inFile = open_file(filename, "r")))
+	// Check arguements
+	if (argc != 2) 
 	{
-		exit(5);
-	}
-	filename = argv[3];
-	if (!(outFile = open_file(filename, "w+")))
-	{
-		close_file(inFile);
-		exit(6);
-	}
-    
-    // Init structures
-    memset(&msg, 0, sizeof(struct msgbuf));
-    memset(&rcv, 0, sizeof(struct msgbuf));
-    msg.mtype = 1;
-
-	// Read from file
-	read_file(inFile, &msg);
-
-    // Open message queue
-    id = open_queue(mkey);
-    if (id == -1)
-    {
-		close_file(inFile);
-		close_file(outFile);
-        exit(1);
-    }
-
-	// Write from queue
-	if (send_message(id, &msg) == -1)
-	{
-		remove_queue(id);
-		close_file(inFile);
-		close_file(outFile);
-		exit(2);
+		printf("%s\n", "Usage: ./assign2 [server|client]");
+		exit(1);
 	}
 
-	// Read to queue
-	if (read_message(id, msg.mtype, &rcv) == -1)
+	// Set message queue key based on PID
+	mkey = (int)getpid();
+	if ((qid = open_queue(mkey)) == -1)
 	{
-		remove_queue(id);
-		close_file(inFile);
-		close_file(outFile);
-		exit(3);
+		perror("Could not open queue");
+		exit(1);
 	}
 
-	// Write to file
-	write_file(&rcv, outFile);
+	// Start mode
+	if (!strcmp("server", argv[1]))
+	{
+		if (srvr())
+		{
+			perror("Error with server");
+		}
+	}
+	else if (!strcmp("client", argv[1]))
+	{
+		if (clnt())
+		{
+			perror("Error with client");
+		}
+	}
+	else
+	{
+		printf("%s\n", "Usage: ./assign2 [server|client]");
+	}
 
-    // Close message queue
-    if (remove_queue(id) == -1)
-    {
-		close_file(inFile);
-		close_file(outFile);
-        exit(4);
-    }
+	// Close queue
+	if (remove_queue(qid) == -1)
+	{
+		perror("Could not close queue");
+	}
 
-	close_file(inFile);
-	close_file(outFile);
-    exit(0);
+	exit(0);
 }
