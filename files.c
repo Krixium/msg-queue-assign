@@ -31,7 +31,8 @@ char * read_file(FILE * file, struct msgbuf * msg)
     char * result;
 
     pthread_mutex_lock(&mutex);
-    result = fgets(msg->mtext, MSGSIZE, file);
+    msg->mlen = MSGSIZE;
+    result = fgets(msg->mtext, msg->mlen, file);
     pthread_mutex_unlock(&mutex);
 
     return result;

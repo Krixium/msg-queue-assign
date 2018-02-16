@@ -1,7 +1,8 @@
 #ifndef MSGQ_H
 #define MSGQ_H
 
-#define MSGSIZE 128
+#define MSGSIZE (4096 - 16)
+#define MSGHEADERSIZE (sizeof(msgbuf) - MSGSIZE)
 
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -10,6 +11,7 @@
 #include "threads.h"
 
 struct msgbuf {
+    int mlen;
     long mtype;
     char mtext[MSGSIZE];
 } msg;
