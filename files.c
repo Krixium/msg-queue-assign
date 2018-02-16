@@ -24,3 +24,27 @@ int close_file(FILE * fp)
 
     return result;
 }
+
+
+char * read_file(const FILE * file, struct msgbuf * msg)
+{
+    char * result;
+
+    pthread_mutex_lock(&mutex);
+    result = fgets(msg.mtext, MSGSIZE, file);
+    pthread_mutex_unlock(&mutex);
+
+    return result;
+}
+
+
+int write_file(const struct msgbuf * msg, FILE * file);
+{
+    int result;
+
+    pthread_mutex_lock(&mutex);
+    result = fprintf(file, "%s", msg.mtext);
+    pthread_mutex_unlock(&mutex);
+
+    return result;
+}
