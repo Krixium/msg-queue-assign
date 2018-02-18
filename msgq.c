@@ -17,12 +17,9 @@ int open_queue(const key_t keyval)
 int send_message(const int msg_qid, struct msgbuf * qbuf)
 {
     int result;
-    int length;
-
-    length = sizeof(struct msgbuf) - sizeof(long);
 
     pthread_mutex_lock(&mutex);
-	result = msgsnd(msg_qid, qbuf, length, 0);
+	result = msgsnd(msg_qid, qbuf, MSGSIZE, IPC_NOWAIT);
     pthread_mutex_unlock(&mutex);
 
     return result;
@@ -32,12 +29,10 @@ int send_message(const int msg_qid, struct msgbuf * qbuf)
 int read_message(const int qid, const long type, struct msgbuf * qbuf)
 {
     int result;
-    int length;
-
-    length = sizeof(struct msgbuf) - sizeof(long);
 
 	pthread_mutex_lock(&mutex);
-    result = msgrcv(qid, qbuf, length, type, 0);
+    result = msgrcv(qid, qbuf, MSGSIZE, type, IPC_NOWAIT);
+    qbuf->mlen = result;
 	pthread_mutex_unlock(&mutex);
 
     return result;

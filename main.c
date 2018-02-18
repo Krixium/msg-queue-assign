@@ -3,48 +3,49 @@
 
 int main(int argc, char * argv[])
 {
-	int mkey;
+	int i;
+	int childCount;
+	int pid;
 	int qid;
 
 	// Check arguements
 	if (argc != 2) 
 	{
-		printf("%s\n", "Usage: ./assign2 [server|client]");
+		printf("%s\n", "Usage: ./assign2 number_of_clients");
 		exit(1);
 	}
 
 	// Set message queue key based on PID
-	mkey = (int)getpid();
-	if ((qid = open_queue(mkey)) == -1)
+	pid = (int)getpid();
+	if ((qid = open_queue(pid)) == -1)
 	{
 		perror("Could not open queue");
 		exit(1);
 	}
 
-	// Start mode
-	if (!strcmp("server", argv[1]))
+	// Create children in fan pattern
+	childCount = atoi(argv[1]);
+	for (i = 0; i < childCount; i++)
 	{
-		if (srvr())
+		if (!(pid = fork()))
+		{
+			clnt(qid);
+			break;
+		}
+	}
+
+	// If this is the parent
+	if (pid)
+	{
+		if (srvr(qid))
 		{
 			perror("Error with server");
 		}
-	}
-	else if (!strcmp("client", argv[1]))
-	{
-		if (clnt())
-		{
-			perror("Error with client");
-		}
-	}
-	else
-	{
-		printf("%s\n", "Usage: ./assign2 [server|client]");
-	}
 
-	// Close queue
-	if (remove_queue(qid) == -1)
-	{
-		perror("Could not close queue");
+		if (remove_queue(qid) == -1)
+		{
+			perror("Could not close queue");
+		}
 	}
 
 	exit(0);

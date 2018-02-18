@@ -1,8 +1,11 @@
 #ifndef MSGQ_H
 #define MSGQ_H
 
-#define MSGSIZE (4096 - 16)
-#define MSGHEADERSIZE (sizeof(msgbuf) - MSGSIZE)
+#define S_TO_C 1
+#define C_TO_S 1
+
+#define MSGHEADERSIZE (sizeof(int) + sizeof(long))
+#define MSGSIZE (4096 - MSGHEADERSIZE)
 
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -11,9 +14,9 @@
 #include "threads.h"
 
 struct msgbuf {
-    int mlen;
     long mtype;
     char mtext[MSGSIZE];
+    int mlen;
 } msg;
 
 int open_queue(const key_t keyval);

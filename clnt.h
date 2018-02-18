@@ -2,7 +2,11 @@
 #define CLNT_H
 
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
-int clnt();
+#include "msgq.h"
+
+int clnt(const int qid);
 
 #endif

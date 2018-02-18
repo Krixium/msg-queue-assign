@@ -2,7 +2,12 @@
 #define SRVR_H
 
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
-int srvr();
+#include "files.h"
+#include "msgq.h"
+
+int srvr(const int qid);
 
 #endif
