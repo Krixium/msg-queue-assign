@@ -11,22 +11,23 @@ main
 
 
 server
+    [thread 1]
     while the program is running
-        listen for filenames
-            if a filename is read from message queue
-                get pid and file from message
-                serve(pid, file)
+        if a filename is read from message queue
+            add the pid to queue
+    
+    [thread 2]
+    while the program is running
+        if the queue is not empty
+            loop throught the queue and serve one packet
+            if the current file is done remove pid from queue
 
-
-serve(pid, file)
-    open the file
-    send the file over the message queue with mtype of pid
 
 
 client(qid)
-    create message buffer
     get pid
     get filename from user
+    create message buffer
     write filename to msg and pid to msg queue with mtype 1
     
     while reading from msg queue doesnt return an error

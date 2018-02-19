@@ -2,6 +2,7 @@
 
 pthread_mutex_t mutex;
 
+
 int open_queue(const key_t keyval)
 {
     int qid;
@@ -32,6 +33,19 @@ int read_message(const int qid, const long type, struct msgbuf * qbuf)
 
 	pthread_mutex_lock(&mutex);
     result = msgrcv(qid, qbuf, MSGSIZE, type, IPC_NOWAIT);
+    qbuf->mlen = result;
+	pthread_mutex_unlock(&mutex);
+
+    return result;
+}
+
+
+int read_message_blocking(const int qid, const long type, struct msgbuf * qbuf)
+{
+    int result;
+
+	pthread_mutex_lock(&mutex);
+    result = msgrcv(qid, qbuf, MSGSIZE, type, 0);
     qbuf->mlen = result;
 	pthread_mutex_unlock(&mutex);
 

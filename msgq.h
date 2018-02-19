@@ -22,6 +22,7 @@ struct msgbuf {
 int open_queue(const key_t keyval);
 int send_message(const int msg_qid, struct msgbuf *qbuf);
 int read_message(const int qid, const long type, struct msgbuf *qbuf);
+int read_message_blocking(const int qid, const long type, struct msgbuf *qbuf);
 int remove_queue(const int qid);
 
 #endif

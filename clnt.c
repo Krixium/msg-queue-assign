@@ -6,39 +6,47 @@ int clnt(const int qid)
     int pid;
     int result;
     struct msgbuf mBuffer;
-    char filename[MSGSIZE];
 
     pid = (int)getpid();
     memset(&mBuffer, 0, sizeof(struct msgbuf));
-    memset(filename, 0, MSGSIZE);
 
-    // Create atomic functions for getting user input to replace this
-    sprintf(filename, "%s %d", "test.in", pid);
+    // Get filename here somehow
 
-    // Set the message buffer
-    mBuffer.mlen = strlen(filename);
-    mBuffer.mtype = (long)1;
-    strcpy(mBuffer.mtext, filename);
+    // Place the filename and child PID into buffer
+    mBuffer.mtype = C_TO_S;
+    sprintf(mBuffer.mtext, "%s/%d", "test.in", pid);
+    mBuffer.mlen = strlen(mBuffer.mtext);
 
-    // Send filename and PID to server
-    if (send_message(qid, &mBuffer) == -1)
-    {
-        perror("Could not write to message queue");
-        return 1;
-    }   
-
-    // This is for testing
-    // Wait so that the server can write something
-    // Replace with a semaphore
-    sleep(2);
+    // Send the buffer
+    send_message(qid, &mBuffer);
 
     memset(&mBuffer, 0, sizeof(struct msgbuf));
-    while ((result = read_message(qid, pid, &mBuffer) > 0))
+
+    // Check if server returns with error message
+    if (read_message_blocking(qid, pid, &mBuffer) == -1)
     {
-        printf("%s", mBuffer.mtext);
+        perror("Reading from message queue failed");
+        return 1;
     }
-    printf("\n");
-    fflush(stdout);
+
+    // Check if the server returned an error opening the file
+    if (!strcmp(mBuffer.mtext, "Could not open file"))
+    {
+        // If it did, print the error and return
+        printf("%s\n", mBuffer.mtext);
+        return 0;
+    }
+    else
+    {
+        // Otherwise, print the first part of the file
+        printf("%s\n", mBuffer.mtext);
+    }
+
+    // If the message is not full that means it is the last one
+    while (read_message_blocking(qid, pid, &mBuffer) == MSGSIZE)
+    {
+        printf("%s\n", mBuffer.mtext);
+    }
 
     return 0;
 }
