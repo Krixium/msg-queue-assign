@@ -4,7 +4,6 @@
 int clnt(const int qid)
 {
     int pid;
-    int result;
     struct msgbuf mBuffer;
 
     pid = (int)getpid();
@@ -16,6 +15,8 @@ int clnt(const int qid)
     mBuffer.mtype = C_TO_S;
     sprintf(mBuffer.mtext, "%s/%d", "test.in", pid);
     mBuffer.mlen = strlen(mBuffer.mtext);
+
+    printf("Starting child: %d\n", pid);
 
     // Send the buffer
     send_message(qid, &mBuffer);
@@ -39,13 +40,14 @@ int clnt(const int qid)
     else
     {
         // Otherwise, print the first part of the file
-        printf("%s\n", mBuffer.mtext);
+        printf("[PID: %d]%s\n", pid, mBuffer.mtext);
     }
 
+    // BUG: loop does not exit
     // If the message is not full that means it is the last one
     while (read_message_blocking(qid, pid, &mBuffer) == MSGSIZE)
     {
-        printf("%s\n", mBuffer.mtext);
+        printf("[PID: %d]%s\n", pid, mBuffer.mtext);
     }
 
     return 0;

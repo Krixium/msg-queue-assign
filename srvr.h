@@ -21,7 +21,17 @@ struct client_data
     FILE * file;
 };
 
+struct thread_params
+{
+    int * pRunning;
+    int qid;
+    struct queue * pClientQueue;
+};
+
 int srvr(const int qid);
+
+void * accept_clients(void * params);
+
 void splitFilenameAndPID(const char * message, char * filename, int * pid);
 
 int addClientToQueue(struct queue * q, int pid, FILE * file);

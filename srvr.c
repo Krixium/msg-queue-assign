@@ -3,47 +3,121 @@
 
 int srvr(const int qid)
 {
-    struct queue q;
+    // queue to hold all the clients
+    struct queue clntQueue;
 
-    int childPID;
-    FILE * file;
-    char filename[MSGSIZE];
-    struct msgbuf mBuffer;
+    // Threading variable
+    pthread_t acceptThread;
+    int running = 1;
+    struct thread_params params;
 
-    memset(&q, 0, sizeof(struct queue));
-    q.size = 0;
-    q.q = (struct client_data *)malloc(sizeof(struct client_data *));
+    int i;
+    int sent;
+    struct msgbuf sendBuffer;
 
-    memset(&mBuffer, 0, sizeof(struct msgbuf));
+    // Init the client queue
+    memset(&clntQueue, 0, sizeof(struct queue));
+    clntQueue.size = 0;
+    clntQueue.q = (struct client_data *)malloc(sizeof(struct client_data *));
 
-    // This is for testing, creates a delay so client has time to post filename
-    sleep(2);
+    // Init the threading variable
+    memset(&params, 0, sizeof(struct thread_params));
+    params.pRunning = &running;
+    params.qid = qid;
+    params.pClientQueue = &clntQueue;
 
-    // Grab the PID of child to use as mtype and file to read
-    if (read_message_blocking(qid, C_TO_S, &mBuffer) == -1)
+    // Startng the accept clients thread
+    if (pthread_create(&acceptThread, NULL, accept_clients, (void *)&params))
     {
         return 1;
     }
 
-    // Grab the pid of the child and the name of the desired file to be opened
-    splitFilenameAndPID(mBuffer.mtext, filename, &childPID);
+    sleep(1);
 
-    // Add the first client to the queue
-    if (!addClientToQueue(&q, childPID, file))
+    while (clntQueue.size > 0)
     {
-        return 2;
+        sent = 0;
+        for (i = 0; i < clntQueue.size; i++)
+        {
+            sendBuffer.mtype = clntQueue.q[i].pid;
+            if (read_file(clntQueue.q[i].file, &sendBuffer) < 1)
+            {
+                // Remove that client from the queue
+                continue;
+            }
+
+            if (send_message(qid, &sendBuffer) == -1)
+            {
+                // maybe instead of breaking here, just remove that client
+                running = 0;
+                break;
+            }
+
+            sent++;
+        }
+
+        /////////////////// This is here because removing clients from queues does not yet work ///////////////////
+        if (sent < clntQueue.size)
+        {
+            break;
+        }
+        /////////////////// Remove after ///////////////////
     }
 
-    // Spin up a thread to start sending to all clients in the queue
-
-    // On this thread, listen for more connections
-
-
-
+    removeClientFromQueue(&clntQueue, 0);
+    running = 0;
     // When exiting free the queue structure
     sleep(2);
     return 0;
 }
+
+
+void * accept_clients(void * params)
+{
+    struct msgbuf buffer;
+    char filename[MSGSIZE];
+    FILE * fp;
+    int pid;
+
+    struct thread_params * p = (struct thread_params *)params;
+    int * pRunning = p->pRunning;
+    int qid = p->qid;
+    struct queue * pClientQueue = p->pClientQueue;
+
+    memset(&buffer, 0, sizeof(struct msgbuf));
+
+    while (pRunning)
+    {
+        if (read_message(qid, C_TO_S, &buffer) > 0)
+        {
+            splitFilenameAndPID(buffer.mtext, filename, &pid);
+            fp = open_file(filename, "r");
+            if (fp == NULL)
+            {
+                buffer.mtype = pid;
+                strcpy(buffer.mtext, "Error: Could not open file");
+                buffer.mlen = 27;
+                if (send_message(qid, &buffer) == -1)
+                {
+                    *pRunning = 0;
+                    break;
+                }
+                sched_yield();
+            }
+            else
+            {
+                addClientToQueue(pClientQueue, pid, fp);
+            }
+        }
+        else
+        {
+            sched_yield();
+        }
+    }
+
+    return NULL;    
+}
+
 
 void splitFilenameAndPID(const char * message, char * filename, int * pid)
 {
@@ -68,7 +142,6 @@ void splitFilenameAndPID(const char * message, char * filename, int * pid)
 
 int addClientToQueue(struct queue * q, int pid, FILE * file)
 {
-    int result;
     struct client_data client;
     struct client_data * oldQueue;
 
@@ -76,9 +149,8 @@ int addClientToQueue(struct queue * q, int pid, FILE * file)
     client.file = file;
 
     q->size++;
-
     oldQueue = q->q;
-    q->q = (struct client_data *)realloc(q, sizeof(struct client_data) * q->size);
+    q->q = (struct client_data *)realloc(q->q, sizeof(struct client_data) * q->size);
     if (q->q == NULL)
     {
         q->q = oldQueue;
@@ -96,7 +168,8 @@ int removeClientFromQueue(struct queue * q, int pid)
     int i;
     for (i = 0; i < q->size; i++)
     {
-        free(q->q);
+        close_file(q->q[i].file);
     }
+    free(q->q);
     return 1;
 }
