@@ -77,11 +77,10 @@ void * accept_clients(void * params)
 
     while (pRunning)
     {
-        int oldSize;
-
         // If a new client is found...
         if (read_message(qid, C_TO_S, &buffer) > 0)
         {
+            printf("Read a new message: [%s]\n", buffer.mtext);
             // Grab the filename and pid
             splitFilenameAndPID(buffer.mtext, filename, &pid);
             fp = open_file(filename, "r");
@@ -102,11 +101,7 @@ void * accept_clients(void * params)
             }
             else
             {
-                oldSize = pClientQueue->size;
-                if (addClientToQueue(pClientQueue, pid, fp) == oldSize)
-                {
-                    perror("Could not add client to queue");
-                }
+                addClientToQueue(pClientQueue, pid, fp);
             }
         }
         else
