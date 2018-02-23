@@ -43,7 +43,6 @@ int clnt(const int qid)
         printf("[PID: %d]%s\n", pid, mBuffer.mtext);
     }
 
-    // BUG: loop does not exit
     // If the message is not full that means it is the last one
     while (read_message_blocking(qid, pid, &mBuffer) == MSGSIZE)
     {

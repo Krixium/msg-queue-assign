@@ -8,6 +8,7 @@
 
 #include "files.h"
 #include "msgq.h"
+#include "threads.h"
 
 struct queue
 {
@@ -34,7 +35,8 @@ void * accept_clients(void * params);
 
 void splitFilenameAndPID(const char * message, char * filename, int * pid);
 
-int addClientToQueue(struct queue * q, int pid, FILE * file);
-int removeClientFromQueue(struct queue * q, int pid);
+int addClientToQueue(struct queue * pq, int pid, FILE * file);
+int removeClientFromQueue(struct queue * pq, int pid);
+int clearQueue(struct queue * pq);
 
 #endif
