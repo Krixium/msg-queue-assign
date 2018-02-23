@@ -1,90 +1,70 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "main.h"
 
-#include "msgq.h"
-#include "files.h"
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
+// Usage: ./assign2 [server|client qid]
 int main(int argc, char * argv[])
 {
-    int mkey;
-    int id;
-    struct msgbuf msg;
-    struct msgbuf rcv;
-	char * filename;
-	FILE * inFile;
-	FILE * outFile;
+    int pid;
+    int qid;
 
-    if (argc != 4)
+    if (argc < 2)
     {
-        fprintf(stderr, "Usage: showmsg keyval inFilename outFilename\n");
+        printUsage();
     }
 
-    mkey = (key_t) atoi(argv[1]);
-	
-	// Open files
-	filename = argv[2];
-	if (!(inFile = open_file(filename, "r")))
-	{
-		exit(5);
-	}
-	filename = argv[3];
-	if (!(outFile = open_file(filename, "w+")))
-	{
-		close_file(inFile);
-		exit(6);
-	}
-    
-    // Init structures
-    memset(&msg, 0, sizeof(struct msgbuf));
-    memset(&rcv, 0, sizeof(struct msgbuf));
-    msg.mtype = 1;
-
-	// Read from file
-	read_file(inFile, &msg);
-
-    // Open message queue
-    id = open_queue(mkey);
-    if (id == -1)
+    // Server
+    if (!strcmp(argv[1], "server"))
     {
-		close_file(inFile);
-		close_file(outFile);
-        exit(1);
+        pid = (int)getpid();
+        if ((qid = open_queue(pid)) == -1)
+        {
+            perror("Could not open queue");
+            exit(1);
+        }
+
+        fprintf(stdout, "Use './assign2 client %d [filename]' to make request to this server\n", qid);
+        fflush(stdout);
+
+        if (srvr(qid) != 0)
+        {
+            remove_queue(qid);
+            perror("Error with server");
+            exit(2);
+        }
+
+        if (remove_queue(qid) == -1)
+        {
+            perror("Problem with closing the queue");
+            exit(3);
+        }
+    }
+    // Client
+    else if (!strcmp(argv[1], "client"))
+    {
+        if (argc != 4)
+        {
+            printUsage();
+            return 0;
+        }
+
+        qid = atoi(argv[2]);
+
+        if (clnt(qid, argv[3]) != 0)
+        {
+            perror("Error with client");
+            exit(4);
+        }
+    }
+    else
+    {
+        printUsage();
     }
 
-	// Write from queue
-	if (send_message(id, &msg) == -1)
-	{
-		remove_queue(id);
-		close_file(inFile);
-		close_file(outFile);
-		exit(2);
-	}
+    return 0;
+}
 
-	// Read to queue
-	if (read_message(id, msg.mtype, &rcv) == -1)
-	{
-		remove_queue(id);
-		close_file(inFile);
-		close_file(outFile);
-		exit(3);
-	}
 
-	// Write to file
-	write_file(&rcv, outFile);
-
-    // Close message queue
-    if (remove_queue(id) == -1)
-    {
-		close_file(inFile);
-		close_file(outFile);
-        exit(4);
-    }
-
-	close_file(inFile);
-	close_file(outFile);
-    exit(0);
+void printUsage()
+{
+    printf("Usage: ./assign2 [server|client qid filename]\n");
 }
