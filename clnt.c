@@ -1,7 +1,7 @@
 #include "clnt.h"
 
 
-int clnt(const int qid)
+int clnt(const int qid, const char * filename)
 {
     int pid;
     struct msgbuf mBuffer;
@@ -13,10 +13,8 @@ int clnt(const int qid)
 
     // Place the filename and child PID into buffer
     mBuffer.mtype = C_TO_S;
-    sprintf(mBuffer.mtext, "%s/%d", "test.in", pid);
+    sprintf(mBuffer.mtext, "%s/%d", filename, pid);
     mBuffer.mlen = strlen(mBuffer.mtext);
-
-    printf("Starting child: %d\n", pid);
 
     // Send the buffer
     send_message(qid, &mBuffer);
@@ -40,13 +38,15 @@ int clnt(const int qid)
     else
     {
         // Otherwise, print the first part of the file
-        printf("[PID: %d]%s\n", pid, mBuffer.mtext);
+        // printf("[PID: %d]%s\n", pid, mBuffer.mtext);
+        printf("%s", mBuffer.mtext);
     }
 
     // If the message is not full that means it is the last one
     while (read_message_blocking(qid, pid, &mBuffer) == MSGSIZE)
     {
-        printf("[PID: %d]%s\n", pid, mBuffer.mtext);
+        // printf("[PID: %d]%s\n", pid, mBuffer.mtext);
+        printf("%s", mBuffer.mtext);
     }
 
     return 0;

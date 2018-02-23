@@ -8,6 +8,7 @@ int srvr(const int qid)
     struct queue clntQueue;
 
     // Threading variable
+    pthread_t controlThread;
     pthread_t acceptThread;
     int running = 1;
     struct thread_params params;
@@ -26,15 +27,23 @@ int srvr(const int qid)
     params.qid = qid;
     params.pClientQueue = &clntQueue;
 
+    // Start thread to check if program should stop running
+    if (pthread_create(&controlThread, NULL, control_thread, (void *)&running))
+    {
+        perror("Could not start thread");
+        return 1;
+    }
+
     // Startng the accept clients thread
     if (pthread_create(&acceptThread, NULL, accept_clients, (void *)&params))
     {
+        perror("Could not start thread");
         return 1;
     }
 
     sleep(1);
 
-    while (clntQueue.size > 0)
+    while (running)
     {
         for (i = 0; i < clntQueue.size; i++)
         {
@@ -44,23 +53,49 @@ int srvr(const int qid)
                 removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
                 continue;
             }
-
-            if (send_message(qid, &sendBuffer) == -1)
+            else
             {
-                running = 0;
-                break;
+                if (send_message(qid, &sendBuffer) == -1)
+                {
+                    running = 0;
+                    break;
+                }
             }
+            
         }
     }
 
-    running = 0;
-    // When exiting free the queue structure
-    sleep(1);
     return 0;
 }
 
 
-// Potentially not working
+void * control_thread(void * params)
+{
+    char line[256];
+    char command[256];
+    int * pRunning = (int *)params;
+
+    while (*pRunning)
+    {
+        if (fgets(line, 256, stdin))
+        {
+            if (sscanf(line, "%s", command) == 1)
+            {
+                if (!strcmp(command, "quit"))
+                {
+                    *pRunning = 0;
+                }
+            }
+        }
+
+        sched_yield();
+    }
+
+    return NULL;
+}
+
+
+// Does not respond to all clients once the number of clients reaches around 7
 void * accept_clients(void * params)
 {
     struct msgbuf buffer;
@@ -80,7 +115,8 @@ void * accept_clients(void * params)
         // If a new client is found...
         if (read_message(qid, C_TO_S, &buffer) > 0)
         {
-            printf("Read a new message: [%s]\n", buffer.mtext);
+            printf("New request: [%s]\n", buffer.mtext);
+
             // Grab the filename and pid
             splitFilenameAndPID(buffer.mtext, filename, &pid);
             fp = open_file(filename, "r");
@@ -101,7 +137,13 @@ void * accept_clients(void * params)
             }
             else
             {
-                addClientToQueue(pClientQueue, pid, fp);
+                if (addClientToQueue(pClientQueue, pid, fp) == -1)
+                {
+                    perror("Realloc error");
+                    return NULL;
+                }
+                fprintf(stdout, "New client %d added\n", pid);
+                fflush(stdout);
             }
         }
         else
@@ -138,14 +180,23 @@ void splitFilenameAndPID(const char * message, char * filename, int * pid)
 int addClientToQueue(struct queue * pq, int pid, FILE * file)
 {
     struct client_data client;
+    struct client_data * oldQueue;
 
     client.pid = pid;
     client.file = file;
 
     pthread_mutex_lock(&mutex);
-    pq->size++;
-    pq->q = (struct client_data *)realloc(pq->q, pq->size * sizeof(struct client_data));
-    pq->q[pq->size - 1] = client;
+    oldQueue = pq->q;
+    pq->q = (struct client_data *)realloc(pq->q, (pq->size + 1) * sizeof(struct client_data));
+    if (pq->q == NULL)
+    {
+        pq->q = oldQueue;
+    }
+    else
+    {
+        pq->q[pq->size] = client;
+        pq->size++;
+    }
     pthread_mutex_unlock(&mutex);
 
     return pq->size;
@@ -163,14 +214,14 @@ int removeClientFromQueue(struct queue * pq, int pid)
     {
         if (pq->q[i - 1].pid == pid)
         {
-            /*
             close_file(pq->q[i - 1].file);
-            */
 
+            pthread_mutex_lock(&mutex);
             for (j = i; j < pq->size - 2; j++)   
             {
                 pq->q[j] = pq->q[j + 1];
             }
+            pthread_mutex_unlock(&mutex);
 
             x++;
         }

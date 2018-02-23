@@ -32,6 +32,7 @@ struct thread_params
 int srvr(const int qid);
 
 void * accept_clients(void * params);
+void * control_thread(void * params);
 
 void splitFilenameAndPID(const char * message, char * filename, int * pid);
 

@@ -1,52 +1,70 @@
 #include "main.h"
 
 
+// Usage: ./assign2 [server|client qid]
 int main(int argc, char * argv[])
 {
-	int i;
-	int childCount;
-	int pid;
-	int qid;
+    int pid;
+    int qid;
 
-	// Check arguements
-	if (argc != 2) 
-	{
-		printf("%s\n", "Usage: ./assign2 number_of_clients");
-		exit(1);
-	}
+    if (argc < 2)
+    {
+        printUsage();
+    }
 
-	// Set message queue key based on PID
-	pid = (int)getpid();
-	if ((qid = open_queue(pid)) == -1)
-	{
-		perror("Could not open queue");
-		exit(1);
-	}
+    // Server
+    if (!strcmp(argv[1], "server"))
+    {
+        pid = (int)getpid();
+        if ((qid = open_queue(pid)) == -1)
+        {
+            perror("Could not open queue");
+            exit(1);
+        }
 
-	// Create children in fan pattern
-	childCount = atoi(argv[1]);
-	for (i = 0; i < childCount; i++)
-	{
-		if (!(pid = fork()))
-		{
-			clnt(qid);
-			break;
-		}
-	}
+        fprintf(stdout, "Use './assign2 client %d [filename]' to make request to this server\n", qid);
+        fflush(stdout);
 
-	// If this is the parent
-	if (pid)
-	{
-		if (srvr(qid))
-		{
-			perror("Error with server");
-		}
+        if (srvr(qid) != 0)
+        {
+            remove_queue(qid);
+            perror("Error with server");
+            exit(2);
+        }
 
-		if (remove_queue(qid) == -1)
-		{
-			perror("Could not close queue");
-		}
-	}
+        if (remove_queue(qid) == -1)
+        {
+            perror("Problem with closing the queue");
+            exit(3);
+        }
+    }
+    // Client
+    else if (!strcmp(argv[1], "client"))
+    {
+        if (argc != 4)
+        {
+            printUsage();
+            return 0;
+        }
 
-	exit(0);
+        qid = atoi(argv[2]);
+
+        if (clnt(qid, argv[3]) != 0)
+        {
+            perror("Error with client");
+            exit(4);
+        }
+    }
+    else
+    {
+        printUsage();
+    }
+
+    return 0;
+}
+
+
+void printUsage()
+{
+    printf("Usage: ./assign2 [server|client qid filename]\n");
 }
