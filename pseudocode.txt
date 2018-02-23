@@ -1,0 +1,40 @@
+main
+    open queue
+
+    fork to create children with msg queue id
+
+    if parent
+        run server
+        close queue
+
+    exit
+
+
+server
+
+    start client_accepting thread
+
+    while the program is running
+        for every client in the queue
+            server 1 message to that client
+            if the last message was served
+                remove the client from the queue
+
+
+client_accepting
+    while program is running
+        make a non blocking read to the msg queue
+            if a client was read
+                add it to the queue
+
+
+client(qid)
+    get pid
+    get filename from user
+    create message buffer
+    write filename to msg and pid to msg queue with mtype 1
+    
+    while reading from msg queue doesnt return an error
+        save message to buffer
+        display buffer
+    

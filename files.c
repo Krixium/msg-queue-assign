@@ -26,14 +26,21 @@ int close_file(FILE * fp)
 }
 
 
-char * read_file(FILE * file, struct msgbuf * msg)
+size_t read_file(FILE * file, struct msgbuf * msg)
 {
-    char * result;
+    size_t result;
 
     pthread_mutex_lock(&mutex);
-    result = fgets(msg->mtext, MSGSIZE, file);
+    if (file == NULL)
+    {
+        result = 0;
+    }
+    else
+    {
+        result = fread(msg->mtext, 1, MSGSIZE, file);
+        msg->mlen = result;
+    }
     pthread_mutex_unlock(&mutex);
-
     return result;
 }
 
