@@ -41,8 +41,6 @@ int srvr(const int qid)
         return 1;
     }
 
-    sleep(1);
-
     while (running)
     {
         for (i = 0; i < clntQueue.size; i++)
@@ -66,32 +64,6 @@ int srvr(const int qid)
     }
 
     return 0;
-}
-
-
-void * control_thread(void * params)
-{
-    char line[256];
-    char command[256];
-    int * pRunning = (int *)params;
-
-    while (*pRunning)
-    {
-        if (fgets(line, 256, stdin))
-        {
-            if (sscanf(line, "%s", command) == 1)
-            {
-                if (!strcmp(command, "quit"))
-                {
-                    *pRunning = 0;
-                }
-            }
-        }
-
-        sched_yield();
-    }
-
-    return NULL;
 }
 
 
@@ -153,6 +125,32 @@ void * accept_clients(void * params)
     }
 
     return NULL;    
+}
+
+
+void * control_thread(void * params)
+{
+    char line[256];
+    char command[256];
+    int * pRunning = (int *)params;
+
+    while (*pRunning)
+    {
+        if (fgets(line, 256, stdin))
+        {
+            if (sscanf(line, "%s", command) == 1)
+            {
+                if (!strcmp(command, "quit"))
+                {
+                    *pRunning = 0;
+                }
+            }
+        }
+
+        sched_yield();
+    }
+
+    return NULL;
 }
 
 

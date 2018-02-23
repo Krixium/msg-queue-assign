@@ -9,8 +9,6 @@ int clnt(const int qid, const char * filename)
     pid = (int)getpid();
     memset(&mBuffer, 0, sizeof(struct msgbuf));
 
-    // Get filename here somehow
-
     // Place the filename and child PID into buffer
     mBuffer.mtype = C_TO_S;
     sprintf(mBuffer.mtext, "%s/%d", filename, pid);
@@ -45,8 +43,10 @@ int clnt(const int qid, const char * filename)
     // If the message is not full that means it is the last one
     while (read_message_blocking(qid, pid, &mBuffer) == MSGSIZE)
     {
-        // printf("[PID: %d]%s\n", pid, mBuffer.mtext);
-        printf("%s", mBuffer.mtext);
+        if (mBuffer.mlen > 1)
+        {
+            printf("%s", mBuffer.mtext);
+        }
     }
 
     return 0;
