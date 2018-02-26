@@ -14,6 +14,7 @@ int srvr(const int qid)
     struct thread_params params;
 
     int i;
+    int res;
     struct msgbuf sendBuffer;
 
     // Init the client queue
@@ -46,20 +47,28 @@ int srvr(const int qid)
         for (i = 0; i < clntQueue.size; i++)
         {
             sendBuffer.mtype = clntQueue.q[i].pid;
-            if (read_file(clntQueue.q[i].file, &sendBuffer) < 1)
+            res = read_file(clntQueue.q[i].file, &sendBuffer);
+
+            if (res >= 0)
             {
-                removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
-                continue;
-            }
-            else
-            {
+                if (res == 0)
+                {
+                    removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
+                }
+
                 if (send_message(qid, &sendBuffer) == -1)
                 {
+                    perror("Problem sending message");
                     running = 0;
                     break;
                 }
+                usleep(5000);
             }
-            
+            else
+            {
+                perror("Problem reading from file");
+                removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
+            }
         }
     }
 

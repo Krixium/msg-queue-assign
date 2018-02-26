@@ -18,7 +18,6 @@ int clnt(const int qid, const char * filename)
     send_message(qid, &mBuffer);
 
     memset(&mBuffer, 0, sizeof(struct msgbuf));
-
     // Check if server returns with error message
     if (read_message_blocking(qid, pid, &mBuffer) == -1)
     {
@@ -27,7 +26,7 @@ int clnt(const int qid, const char * filename)
     }
 
     // Check if the server returned an error opening the file
-    if (!strcmp(mBuffer.mtext, "Could not open file"))
+    if (!strcmp(mBuffer.mtext, "Error: Could not open file"))
     {
         // If it did, print the error and return
         printf("%s\n", mBuffer.mtext);
@@ -36,7 +35,6 @@ int clnt(const int qid, const char * filename)
     else
     {
         // Otherwise, print the first part of the file
-        // printf("[PID: %d]%s\n", pid, mBuffer.mtext);
         printf("%s", mBuffer.mtext);
     }
 
@@ -46,8 +44,12 @@ int clnt(const int qid, const char * filename)
         if (mBuffer.mlen > 1)
         {
             printf("%s", mBuffer.mtext);
+            fflush(stdout);
         }
     }
+
+    printf("%s", mBuffer.mtext);
+    fflush(stdout);
 
     return 0;
 }

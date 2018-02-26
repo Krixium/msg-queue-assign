@@ -20,7 +20,7 @@ int send_message(const int msg_qid, struct msgbuf * qbuf)
     int result;
 
     pthread_mutex_lock(&mutex);
-	result = msgsnd(msg_qid, qbuf, MSGSIZE, IPC_NOWAIT);
+	result = msgsnd(msg_qid, qbuf, qbuf->mlen, IPC_NOWAIT);
     pthread_mutex_unlock(&mutex);
 
     return result;
