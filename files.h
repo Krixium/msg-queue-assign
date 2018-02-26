@@ -2,6 +2,7 @@
 #define FILES_H
 
 #include <stdio.h>
+#include <string.h>
 
 #include "msgq.h"
 #include "threads.h"

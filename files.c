@@ -37,8 +37,10 @@ size_t read_file(FILE * file, struct msgbuf * msg)
     }
     else
     {
-        result = fread(msg->mtext, 1, MSGSIZE, file);
-        msg->mlen = result;
+        memset(msg->mtext, 0, sizeof(char) * MSGSIZE);
+        result = fread(msg->mtext, 1, MSGSIZE - 1, file);
+        msg->mtext[result] = '\0';
+        msg->mlen = result + 1;
     }
     pthread_mutex_unlock(&mutex);
     return result;
