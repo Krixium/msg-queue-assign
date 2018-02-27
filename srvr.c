@@ -62,7 +62,7 @@ int srvr(const int qid)
                     running = 0;
                     break;
                 }
-                usleep(5000);
+                // usleep(5000);
             }
             else
             {
