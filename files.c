@@ -14,12 +14,16 @@ FILE * open_file(const char * filename, const char * flags)
 }
 
 
-int close_file(FILE * fp)
+int close_file(FILE ** fp)
 {
-    int result;
+    int result = -1;
 
     pthread_mutex_lock(&mutex);
-    result = fclose(fp);
+    if (*fp != NULL)
+    {
+        result = fclose(*fp);
+        *fp = NULL;
+    }
     pthread_mutex_unlock(&mutex);
 
     return result;

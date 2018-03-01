@@ -9,9 +9,7 @@ int srvr(const int qid)
 
     // Threading variable
     pthread_t controlThread;
-    pthread_t acceptThread;
     int running = 1;
-    struct thread_params params;
 
     int i;
     int res;
@@ -22,12 +20,6 @@ int srvr(const int qid)
     clntQueue.size = 0;
     clntQueue.q = (struct client_data *)malloc(0);
 
-    // Init the threading variable
-    memset(&params, 0, sizeof(struct thread_params));
-    params.pRunning = &running;
-    params.qid = qid;
-    params.pClientQueue = &clntQueue;
-
     // Start thread to check if program should stop running
     if (pthread_create(&controlThread, NULL, control_thread, (void *)&running))
     {
@@ -35,15 +27,10 @@ int srvr(const int qid)
         return 1;
     }
 
-    // Startng the accept clients thread
-    if (pthread_create(&acceptThread, NULL, accept_clients, (void *)&params))
-    {
-        perror("Could not start thread");
-        return 1;
-    }
-
     while (running)
     {
+        acceptClients(qid, &clntQueue);
+
         for (i = 0; i < clntQueue.size; i++)
         {
             sendBuffer.mtype = clntQueue.q[i].pid;
@@ -53,6 +40,7 @@ int srvr(const int qid)
             {
                 if (res == 0)
                 {
+                    printf("server> client %d is finished, removing\n", clntQueue.q[i].pid);
                     removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
                 }
 
@@ -62,7 +50,7 @@ int srvr(const int qid)
                     running = 0;
                     break;
                 }
-                usleep(5000);
+                // usleep(5000);
             }
             else
             {
@@ -70,70 +58,58 @@ int srvr(const int qid)
                 removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
             }
         }
+        // only for testing completion speed
+        // usleep(2000);
     }
 
+    clearQueue(&clntQueue);
     return 0;
 }
 
 
-// Does not respond to all clients once the number of clients reaches around 7
-void * accept_clients(void * params)
+void acceptClients(int qid, struct queue * pClientQueue)
 {
     struct msgbuf buffer;
     char filename[MSGSIZE];
     FILE * fp;
     int pid;
 
-    struct thread_params * p = (struct thread_params *)params;
-    int * pRunning = p->pRunning;
-    int qid = p->qid;
-    struct queue * pClientQueue = p->pClientQueue;
-
     memset(&buffer, 0, sizeof(struct msgbuf));
 
-    while (pRunning)
+    // If a new client is found...
+    if (read_message(qid, C_TO_S, &buffer) > 0)
     {
-        // If a new client is found...
-        if (read_message(qid, C_TO_S, &buffer) > 0)
+        printf("server> New request: [%s]\n", buffer.mtext);
+
+        // Grab the filename and pid
+        splitFilenameAndPID(buffer.mtext, filename, &pid);
+        fp = open_file(filename, "r");
+
+        // If the file couldn't be oppened
+        if (fp == NULL)
         {
-            printf("New request: [%s]\n", buffer.mtext);
-
-            // Grab the filename and pid
-            splitFilenameAndPID(buffer.mtext, filename, &pid);
-            fp = open_file(filename, "r");
-
-            // If the file couldn't be oppened
-            if (fp == NULL)
+            // Respond with an error
+            buffer.mtype = pid;
+            strcpy(buffer.mtext, "Error: Could not open file");
+            buffer.mlen = 27;
+            if (send_message(qid, &buffer) == -1)
             {
-                // Respond with an error
-                buffer.mtype = pid;
-                strcpy(buffer.mtext, "Error: Could not open file");
-                buffer.mlen = 27;
-                if (send_message(qid, &buffer) == -1)
-                {
-                    *pRunning = 0;
-                    break;
-                }
-                sched_yield();
-            }
-            else
-            {
-                if (addClientToQueue(pClientQueue, pid, fp) == -1)
-                {
-                    perror("Realloc error");
-                    return NULL;
-                }
-                fprintf(stdout, "New client %d added\n", pid);
-                fflush(stdout);
+                return;
             }
         }
         else
         {
-            sched_yield();
+            if (addClientToQueue(pClientQueue, pid, fp) == -1)
+            {
+                perror("Realloc error");
+                return;
+            }
+            printf("server> New client %d added\n", pid);
+            fflush(stdout);
         }
     }
 
-    return NULL;    
+    return;    
 }
 
 
@@ -151,7 +127,9 @@ void * control_thread(void * params)
             {
                 if (!strcmp(command, "quit"))
                 {
+                    pthread_mutex_lock(&mutex);
                     *pRunning = 0;
+                    pthread_mutex_unlock(&mutex);
                 }
             }
         }
@@ -216,15 +194,17 @@ int removeClientFromQueue(struct queue * pq, int pid)
     int j;
     int x;
 
+    printf("server> Removing all instances of %d from queue\n", pid);
+
     x = 0;
     for (i = pq->size; i > 0; i--)
     {
         if (pq->q[i - 1].pid == pid)
         {
-            close_file(pq->q[i - 1].file);
+            close_file(&(pq->q[i - 1].file));
 
             pthread_mutex_lock(&mutex);
-            for (j = i; j < pq->size - 2; j++)   
+            for (j = i - 1; j < pq->size - 1; j++)   
             {
                 pq->q[j] = pq->q[j + 1];
             }
@@ -243,13 +223,13 @@ int removeClientFromQueue(struct queue * pq, int pid)
 }
 
 
-int clearQueue(struct queue * q)
+int clearQueue(struct queue * pq)
 {
     int i;
-    for (i = 0; i < q->size; i++)
+    for (i = 0; i < pq->size; i++)
     {
-        close_file(q->q[i].file);
+        close_file(&(pq->q[i].file));
     }
-    free(q->q);
+    free(pq->q);
     return 1;
 }
