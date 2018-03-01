@@ -52,7 +52,7 @@ int main(int argc, char * argv[])
 
         qid = atoi(argv[2]);
 
-        p = argv[5];
+        p = argv[4];
 
         if (!strcmp(p, "high"))
         {

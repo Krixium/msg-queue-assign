@@ -70,8 +70,9 @@ void acceptClients(int qid, struct queue * pClientQueue)
 {
     struct msgbuf buffer;
     char filename[MSGSIZE];
-    FILE * fp;
     int pid;
+    int priority;
+    FILE * fp;
 
     memset(&buffer, 0, sizeof(struct msgbuf));
 
@@ -81,7 +82,7 @@ void acceptClients(int qid, struct queue * pClientQueue)
         printf("server> New request: [%s]\n", buffer.mtext);
 
         // Grab the filename and pid
-        splitFilenameAndPID(buffer.mtext, filename, &pid);
+        parseClientRequest(buffer.mtext, &pid, &priority, filename);
         fp = open_file(filename, "r");
 
         // If the file couldn't be oppened
@@ -98,7 +99,7 @@ void acceptClients(int qid, struct queue * pClientQueue)
         }
         else
         {
-            if (addClientToQueue(pClientQueue, pid, fp) == -1)
+            if (addClientToQueue(pClientQueue, pid, priority, fp) == -1)
             {
                 perror("Realloc error");
                 return;
@@ -140,29 +141,41 @@ void * control_thread(void * params)
 }
 
 
-void splitFilenameAndPID(const char * message, char * filename, int * pid)
+void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
 {
     int i;
-    const char * tmp;
+    char tmp[MSGSIZE];
+    char * fileStart = NULL;
+    char * pidStart = NULL;
+    char * priorityStart = NULL;
 
-    for (i = 0; message[i]; i++)
+    strcpy(tmp, message);
+    pidStart = tmp;
+
+    for (i = 0; tmp[i]; i++)
     {
-        if (message[i] == '/')
+        if (tmp[i] == '/')
         {
-            break;
+            tmp[i] = '\0';
+            priorityStart = tmp + i + 1;
+        }
+
+        if (tmp[i] == '\t')
+        {
+            tmp[i] = '\0';
+            fileStart = tmp + i + 1;
         }
     }
 
-    tmp = message + i + 1;
-    *pid = atoi(tmp);
-
-    memcpy(filename, message, i);
-    *(filename + i) = '\0';
+    *pid = atoi(pidStart);
+    *priority = atoi(priorityStart);
+    memcpy(filename, fileStart, strlen(fileStart));
 }
 
 
-int addClientToQueue(struct queue * pq, int pid, FILE * file)
+int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
 {
+    int i;
     struct client_data client;
     struct client_data * oldQueue;
 
@@ -171,15 +184,18 @@ int addClientToQueue(struct queue * pq, int pid, FILE * file)
 
     pthread_mutex_lock(&mutex);
     oldQueue = pq->q;
-    pq->q = (struct client_data *)realloc(pq->q, (pq->size + 1) * sizeof(struct client_data));
+    pq->q = (struct client_data *)realloc(pq->q, (pq->size + priority) * sizeof(struct client_data));
     if (pq->q == NULL)
     {
         pq->q = oldQueue;
     }
     else
     {
-        pq->q[pq->size] = client;
-        pq->size++;
+        for (i = 0; i < priority; i++)
+        {
+            pq->q[pq->size + i] = client;
+            pq->size++;
+        }
     }
     pthread_mutex_unlock(&mutex);
 
