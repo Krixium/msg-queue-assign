@@ -41,7 +41,10 @@ int main(int argc, char * argv[])
     // Client
     else if (!strcmp(argv[1], "client"))
     {
-        if (argc != 4)
+        int priority = 2;
+        char * p;
+
+        if (argc != 5)
         {
             printUsage();
             return 0;
@@ -49,7 +52,28 @@ int main(int argc, char * argv[])
 
         qid = atoi(argv[2]);
 
-        if (clnt(qid, argv[3]) != 0)
+        p = argv[5];
+
+        if (!strcmp(p, "high"))
+        {
+            priority = HIGH;
+        }
+        else if (!strcmp(p, "normal"))
+        {
+            priority = NORMAL;
+        }
+        else if (!strcmp(p, "low"))
+        {
+            priority = LOW;
+        }
+        else
+        {
+            printUsage();
+            exit(10);
+        }
+        
+
+        if (clnt(qid, priority, argv[3]) != 0)
         {
             perror("Error with client");
             exit(4);
@@ -66,5 +90,5 @@ int main(int argc, char * argv[])
 
 void printUsage()
 {
-    printf("Usage: ./assign2 [server|client qid filename]\n");
+    printf("Usage: ./assign2 [server|client qid filename [high | normal | low]]\n");
 }

@@ -1,7 +1,7 @@
 #include "clnt.h"
 
 
-int clnt(const int qid, const char * filename)
+int clnt(const int qid, const int priority, const char * filename)
 {
     int pid;
     struct msgbuf mBuffer;
@@ -11,7 +11,7 @@ int clnt(const int qid, const char * filename)
 
     // Place the filename and child PID into buffer
     mBuffer.mtype = C_TO_S;
-    sprintf(mBuffer.mtext, "%s/%d", filename, pid);
+    sprintf(mBuffer.mtext, "%d/%d/%s", pid, priority, filename);
     mBuffer.mlen = strlen(mBuffer.mtext);
 
     // Send the buffer

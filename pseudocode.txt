@@ -1,38 +1,43 @@
 main
-    open queue
+    if server program
+        make queue
+        start server
+        remove queue
+        exit
 
-    fork to create children with msg queue id
-
-    if parent
-        run server
-        close queue
-
-    exit
+    if client
+        start client
+        exit
 
 
 server
-
-    start client_accepting thread
-
     while the program is running
+        if there is a new client
+            addClient(pid, priority, file)
+            
         for every client in the queue
             server 1 message to that client
             if the last message was served
-                remove the client from the queue
+                add the client's pid to remove list
+        
+        remove every client from the remove list
 
 
-client_accepting
-    while program is running
-        make a non blocking read to the msg queue
-            if a client was read
-                add it to the queue
+addClient
+    open the file
+        if there is an error
+            reply with error message
+            return
+        else
+            create client structure
+            add the client to the queue x amount of times based on priority
+            [high = 4, normal = 2, low = 1]
 
 
 client(qid)
     get pid
-    get filename from user
     create message buffer
-    write filename to msg and pid to msg queue with mtype 1
+    write filename, priority, and pid to msg queue with mtype 1
     
     while reading from msg queue doesnt return an error
         save message to buffer
