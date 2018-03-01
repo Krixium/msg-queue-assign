@@ -18,9 +18,9 @@ server
         for every client in the queue
             server 1 message to that client
             if the last message was served
-                add the client's pid to remove list
+                flag the client to be removed
         
-        remove every client from the remove list
+        removeFlaggedClients
 
 
 addClient
@@ -32,6 +32,12 @@ addClient
             create client structure
             add the client to the queue x amount of times based on priority
             [high = 4, normal = 2, low = 1]
+
+
+removeFlaggedClients
+    loop through the queue backwards
+        if the client was flagged as completed
+            remove it
 
 
 client(qid)

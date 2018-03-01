@@ -2,6 +2,7 @@
 
 pthread_mutex_t mutex;
 
+
 int srvr(const int qid)
 {
     // queue to hold all the clients
@@ -66,6 +67,34 @@ int srvr(const int qid)
 }
 
 
+void * control_thread(void * params)
+{
+    char line[256];
+    char command[256];
+    int * pRunning = (int *)params;
+
+    while (*pRunning)
+    {
+        if (fgets(line, 256, stdin))
+        {
+            if (sscanf(line, "%s", command) == 1)
+            {
+                if (!strcmp(command, "quit"))
+                {
+                    pthread_mutex_lock(&mutex);
+                    *pRunning = 0;
+                    pthread_mutex_unlock(&mutex);
+                }
+            }
+        }
+
+        sched_yield();
+    }
+
+    return NULL;
+}
+
+
 void acceptClients(int qid, struct queue * pClientQueue)
 {
     struct msgbuf buffer;
@@ -110,34 +139,6 @@ void acceptClients(int qid, struct queue * pClientQueue)
     }
 
     return;    
-}
-
-
-void * control_thread(void * params)
-{
-    char line[256];
-    char command[256];
-    int * pRunning = (int *)params;
-
-    while (*pRunning)
-    {
-        if (fgets(line, 256, stdin))
-        {
-            if (sscanf(line, "%s", command) == 1)
-            {
-                if (!strcmp(command, "quit"))
-                {
-                    pthread_mutex_lock(&mutex);
-                    *pRunning = 0;
-                    pthread_mutex_unlock(&mutex);
-                }
-            }
-        }
-
-        sched_yield();
-    }
-
-    return NULL;
 }
 
 
