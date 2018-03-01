@@ -59,8 +59,6 @@ int srvr(const int qid)
         }
 
         removeFinishedClients(&clntQueue);
-        // only for testing completion speed
-        usleep(2000);
     }
 
     clearQueue(&clntQueue);
