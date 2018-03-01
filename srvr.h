@@ -20,6 +20,7 @@ struct client_data
 {
     int pid;
     FILE * file;
+    int finished;
 };
 
 struct thread_params
@@ -37,7 +38,7 @@ void parseClientRequest(const char * message, int * pid, int * priority, char * 
 
 void acceptClients(int qid, struct queue * pClientQueue);
 int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file);
-int removeClientFromQueue(struct queue * pq, int pid);
+int removeFinishedClients(struct queue * pq);
 int clearQueue(struct queue * pq);
 
 

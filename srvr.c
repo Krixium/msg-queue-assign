@@ -40,8 +40,8 @@ int srvr(const int qid)
             {
                 if (res == 0)
                 {
-                    printf("server> client %d is finished, removing\n", clntQueue.q[i].pid);
-                    removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
+                    printf("server> client %d is finished, flagging\n", clntQueue.q[i].pid);
+                    clntQueue.q[i].finished = 1;
                 }
 
                 if (send_message(qid, &sendBuffer) == -1)
@@ -54,11 +54,13 @@ int srvr(const int qid)
             else
             {
                 perror("Problem reading from file");
-                removeClientFromQueue(&clntQueue, clntQueue.q[i].pid);
+                clntQueue.q[i].finished = 1;
             }
         }
+
+        removeFinishedClients(&clntQueue);
         // only for testing completion speed
-        // usleep(2000);
+        usleep(2000);
     }
 
     clearQueue(&clntQueue);
@@ -181,6 +183,7 @@ int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
 
     client.pid = pid;
     client.file = file;
+    client.finished = 0;
 
     pthread_mutex_lock(&mutex);
     oldQueue = pq->q;
@@ -191,11 +194,11 @@ int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
     }
     else
     {
-        for (i = 0; i < priority; i++)
+        for (i = pq->size; i < pq->size + priority; i++)
         {
-            pq->q[pq->size + i] = client;
-            pq->size++;
+            pq->q[i] = client;
         }
+        pq->size += priority;
     }
     pthread_mutex_unlock(&mutex);
 
@@ -203,18 +206,16 @@ int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
 }
 
 
-int removeClientFromQueue(struct queue * pq, int pid)
+int removeFinishedClients(struct queue * pq)
 {
     int i;
     int j;
     int x;
 
-    printf("server> Removing all instances of %d from queue\n", pid);
-
     x = 0;
     for (i = pq->size; i > 0; i--)
     {
-        if (pq->q[i - 1].pid == pid)
+        if (pq->q[i - 1].finished)
         {
             close_file(&(pq->q[i - 1].file));
 
