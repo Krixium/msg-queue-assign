@@ -59,7 +59,7 @@ int srvr(const int qid)
             }
         }
         // only for testing completion speed
-        usleep(2000);
+        // usleep(2000);
     }
 
     clearQueue(&clntQueue);
