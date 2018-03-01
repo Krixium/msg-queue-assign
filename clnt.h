@@ -7,6 +7,6 @@
 
 #include "msgq.h"
 
-int clnt(const int qid, const char * filename);
+int clnt(const int qid, const int priority, const char * filename);
 
 #endif
