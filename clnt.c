@@ -15,7 +15,11 @@ int clnt(const int qid, const int priority, const char * filename)
     mBuffer.mlen = strlen(mBuffer.mtext);
 
     // Send the buffer
-    send_message(qid, &mBuffer);
+    if (send_message(qid, &mBuffer) == -1)
+    {
+        perror("Problem writing to the message queue");
+        return 1;
+    }
 
     memset(&mBuffer, 0, sizeof(struct msgbuf));
     // Check if server returns with error message
