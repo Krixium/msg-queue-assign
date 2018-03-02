@@ -19,8 +19,9 @@ struct queue
 struct client_data
 {
     int pid;
-    FILE * file;
+    int priority;
     int finished;
+    FILE * file;
 };
 
 struct thread_params

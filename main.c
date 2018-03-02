@@ -22,38 +22,39 @@ int main(int argc, char * argv[])
             exit(1);
         }
 
-        fprintf(stdout, "Use './assign2 client %d [filename]' to make request to this server\n", qid);
+        fprintf(stdout, "Use './assign2 [high|normal|low] %d [filename]' to make a request to this server\n", qid);
         fflush(stdout);
 
         if (srvr(qid) != 0)
         {
             remove_queue(qid);
             perror("Error with server");
-            exit(2);
+            exit(1);
         }
 
         if (remove_queue(qid) == -1)
         {
             perror("Problem with closing the queue");
-            exit(3);
+            exit(1);
         }
     }
     // Client
-    else if (!strcmp(argv[1], "client"))
+    else
     {
         int priority = 2;
         char * p;
 
-        if (argc != 5)
+        if (argc != 4)
         {
             printUsage();
             return 0;
         }
 
+        // grab qid of server
         qid = atoi(argv[2]);
 
-        p = argv[4];
-
+        // grab priority
+        p = argv[1];
         if (!strcmp(p, "high"))
         {
             priority = HIGH;
@@ -69,19 +70,15 @@ int main(int argc, char * argv[])
         else
         {
             printUsage();
-            exit(10);
+            exit(0);
         }
         
 
         if (clnt(qid, priority, argv[3]) != 0)
         {
             perror("Error with client");
-            exit(4);
+            exit(1);
         }
-    }
-    else
-    {
-        printUsage();
     }
 
     return 0;
@@ -90,5 +87,5 @@ int main(int argc, char * argv[])
 
 void printUsage()
 {
-    printf("Usage: ./assign2 [server|client qid filename [high | normal | low]]\n");
+    printf("Usage: ./assign2 [server|[high | normal | low] qid filename]\n");
 }

@@ -13,8 +13,11 @@ int srvr(const int qid)
     int running = 1;
 
     int i;
+    int j;
     int res;
+    int pleaseRemove;
     struct msgbuf sendBuffer;
+    struct client_data * pc;
 
     // Init the client queue
     memset(&clntQueue, 0, sizeof(struct queue));
@@ -28,38 +31,58 @@ int srvr(const int qid)
         return 1;
     }
 
+    pleaseRemove = 0;
     while (running)
     {
         acceptClients(qid, &clntQueue);
 
         for (i = 0; i < clntQueue.size; i++)
         {
-            sendBuffer.mtype = clntQueue.q[i].pid;
-            res = read_file(clntQueue.q[i].file, &sendBuffer);
+            pc = &clntQueue.q[i];
 
-            if (res >= 0)
+            if (pc->finished)
             {
-                if (res == 0)
-                {
-                    printf("server> client %d is finished, flagging\n", clntQueue.q[i].pid);
-                    clntQueue.q[i].finished = 1;
-                }
+                continue;
+            }
 
-                if (send_message(qid, &sendBuffer) == -1)
+            sendBuffer.mtype = pc->pid;
+
+            for (j = 0; j < pc->priority; j++)
+            {
+                res = read_file(pc->file, &sendBuffer);
+                if (res >= 0)
                 {
-                    perror("Problem sending message");
-                    running = 0;
+                    if (res == 0)
+                    {
+                        printf("server> client %d is finished, flagging\n", pc->pid);
+                        fflush(stdout);
+                        pc->finished = 1;
+                        pleaseRemove = 1;
+                        break;
+                    }
+
+                    if (send_message(qid, &sendBuffer) == -1)
+                    {
+                        perror("Problem sending message");
+                        running = 0;
+                        break;
+                    }
+                }
+                else
+                {
+                    perror("Problem reading from file");
+                    pc->finished = 1;
+                    pleaseRemove = 1;
                     break;
                 }
             }
-            else
-            {
-                perror("Problem reading from file");
-                clntQueue.q[i].finished = 1;
-            }
         }
 
-        removeFinishedClients(&clntQueue);
+        if (pleaseRemove)
+        {
+            removeFinishedClients(&clntQueue);
+            pleaseRemove = 0;
+        }
     }
 
     clearQueue(&clntQueue);
@@ -79,7 +102,8 @@ void * control_thread(void * params)
         {
             if (sscanf(line, "%s", command) == 1)
             {
-                if (!strcmp(command, "quit"))
+                if (!strcmp(command, "quit") || !strcmp(command, "stop") 
+                || !strcmp(command, "q") || !strcmp(command, "s"))
                 {
                     pthread_mutex_lock(&mutex);
                     *pRunning = 0;
@@ -95,8 +119,9 @@ void * control_thread(void * params)
 }
 
 
-void acceptClients(int qid, struct queue * pClientQueue)
+void acceptClients(int qid, struct queue * pq)
 {
+    int tmp;
     struct msgbuf buffer;
     char filename[MSGSIZE];
     int pid;
@@ -123,12 +148,14 @@ void acceptClients(int qid, struct queue * pClientQueue)
             buffer.mlen = 27;
             if (send_message(qid, &buffer) == -1)
             {
+                perror("Problem sending error message to client");
                 return;
             }
         }
         else
         {
-            if (addClientToQueue(pClientQueue, pid, priority, fp) == -1)
+            tmp = pq->size;
+            if (addClientToQueue(pq, pid, priority, fp) == tmp)
             {
                 perror("Realloc error");
                 return;
@@ -137,8 +164,6 @@ void acceptClients(int qid, struct queue * pClientQueue)
             fflush(stdout);
         }
     }
-
-    return;    
 }
 
 
@@ -176,28 +201,25 @@ void parseClientRequest(const char * message, int * pid, int * priority, char * 
 
 int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
 {
-    int i;
     struct client_data client;
     struct client_data * oldQueue;
 
     client.pid = pid;
-    client.file = file;
     client.finished = 0;
+    client.priority = priority;
+    client.file = file;
 
     pthread_mutex_lock(&mutex);
     oldQueue = pq->q;
-    pq->q = (struct client_data *)realloc(pq->q, (pq->size + priority) * sizeof(struct client_data));
+    pq->q = (struct client_data *)realloc(pq->q, (pq->size + 1) * sizeof(struct client_data));
     if (pq->q == NULL)
     {
         pq->q = oldQueue;
     }
     else
     {
-        for (i = pq->size; i < pq->size + priority; i++)
-        {
-            pq->q[i] = client;
-        }
-        pq->size += priority;
+        pq->q[pq->size] = client;
+        pq->size++;
     }
     pthread_mutex_unlock(&mutex);
 
@@ -212,24 +234,22 @@ int removeFinishedClients(struct queue * pq)
     int x;
 
     x = 0;
+    pthread_mutex_lock(&mutex);
     for (i = pq->size; i > 0; i--)
     {
+        printf("b\n");
         if (pq->q[i - 1].finished)
         {
             close_file(&(pq->q[i - 1].file));
 
-            pthread_mutex_lock(&mutex);
             for (j = i - 1; j < pq->size - 1; j++)   
             {
                 pq->q[j] = pq->q[j + 1];
             }
-            pthread_mutex_unlock(&mutex);
 
             x++;
         }
     }
-
-    pthread_mutex_lock(&mutex);
     pq->size -= x;
     pq->q = (struct client_data *)realloc(pq->q, sizeof(struct client_data) * pq->size);
     pthread_mutex_unlock(&mutex);

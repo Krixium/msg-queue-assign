@@ -18,13 +18,11 @@ int close_file(FILE ** fp)
 {
     int result = -1;
 
-    pthread_mutex_lock(&mutex);
     if (*fp != NULL)
     {
         result = fclose(*fp);
         *fp = NULL;
     }
-    pthread_mutex_unlock(&mutex);
 
     return result;
 }
