@@ -237,10 +237,9 @@ int removeFinishedClients(struct queue * pq)
     pthread_mutex_lock(&mutex);
     for (i = pq->size; i > 0; i--)
     {
-        printf("b\n");
         if (pq->q[i - 1].finished)
         {
-            close_file(&(pq->q[i - 1].file));
+            close_file_unsafe(&(pq->q[i - 1].file));
 
             for (j = i - 1; j < pq->size - 1; j++)   
             {

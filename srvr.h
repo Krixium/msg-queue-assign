@@ -24,20 +24,13 @@ struct client_data
     FILE * file;
 };
 
-struct thread_params
-{
-    int * pRunning;
-    int qid;
-    struct queue * pClientQueue;
-};
-
 int srvr(const int qid);
 
 void * control_thread(void * params);
 
+void acceptClients(int qid, struct queue * pClientQueue);
 void parseClientRequest(const char * message, int * pid, int * priority, char * filename);
 
-void acceptClients(int qid, struct queue * pClientQueue);
 int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file);
 int removeFinishedClients(struct queue * pq);
 int clearQueue(struct queue * pq);

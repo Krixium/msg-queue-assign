@@ -2,6 +2,7 @@
 
 pthread_mutex_t mutex;
 
+
 FILE * open_file(const char * filename, const char * flags)
 {
     FILE * fp;
@@ -15,6 +16,22 @@ FILE * open_file(const char * filename, const char * flags)
 
 
 int close_file(FILE ** fp)
+{
+    int result = -1;
+
+    pthread_mutex_lock(&mutex);
+    if (*fp != NULL)
+    {
+        result = fclose(*fp);
+        *fp = NULL;
+    }
+    pthread_mutex_unlock(&mutex);
+
+    return result;
+}
+
+
+int close_file_unsafe(FILE ** fp)
 {
     int result = -1;
 
