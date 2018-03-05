@@ -136,6 +136,7 @@ void acceptClients(int qid, struct queue * pq)
         printf("server> New request: [%s]\n", buffer.mtext);
 
         // Grab the filename and pid
+        memset(filename, 0, MSGSIZE);
         parseClientRequest(buffer.mtext, &pid, &priority, filename);
         fp = open_file(filename, "r");
 
