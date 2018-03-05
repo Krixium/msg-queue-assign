@@ -1,8 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#define HIGH    4
-#define NORMAL  2
+#define HIGH    16
+#define NORMAL  4
 #define LOW     1
 
 #include <stdio.h>

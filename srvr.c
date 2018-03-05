@@ -146,6 +146,9 @@ void acceptClients(int qid, struct queue * pq)
             buffer.mtype = pid;
             strcpy(buffer.mtext, "Error: Could not open file");
             buffer.mlen = 27;
+
+            perror("Could not open file");
+
             if (send_message(qid, &buffer) == -1)
             {
                 perror("Problem sending error message to client");
