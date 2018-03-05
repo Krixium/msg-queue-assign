@@ -1,8 +1,58 @@
+/*------------------------------------------------------------------------------------------------------------------
+-- SOURCE FILE:         main.c - A client server application that utilizes message queues.
+--
+-- PROGRAM:             assign2
+--
+-- FUNCTIONS:
+--                      int srvr(const int qid)
+--                      void * control_thread(void * params)
+--                      void acceptClients(const int qid, struct queue * pClientQueue)
+--                      void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
+--                      int addClientToQueue(struct queue * pq, const int pid, const int priotiy, FILE * file)
+--                      int removeFinishedClients(struct queue * pq)
+--                      void clearQueue(struct queue * pq)
+--
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- NOTES:
+-- This file contains all the code for the server.
+----------------------------------------------------------------------------------------------------------------------*/
 #include "srvr.h"
 
 pthread_mutex_t mutex;
 
-
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            srvr
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int srvr (const int qid)
+--                          const int qid: The message queue id of the server.
+--
+-- RETURNS:             The exit code.
+--
+-- NOTES:
+-- The main entry point of the server. The server will:
+-- 1) Create the control thread.
+-- 2) Check if there are new clients
+-- 3) Serve any existing clients
+-- 4) Remove any old clients
+--
+-- The server will only exit when the user types quit, stop, q, or s.
+----------------------------------------------------------------------------------------------------------------------*/
 int srvr(const int qid)
 {
     // queue to hold all the clients
@@ -89,7 +139,26 @@ int srvr(const int qid)
     return 0;
 }
 
-
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            control_thread
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void * control_thread (void * params)
+--                          void * params: The parameters.
+--
+-- RETURNS:             NULL.
+--
+-- NOTES:
+-- This is the callback for the control thread. When the users types in a command this is the thread that handles the
+-- input. Currently only quit, stop, q, and s are supported. They all tell the server to clean up and exit.
+----------------------------------------------------------------------------------------------------------------------*/
 void * control_thread(void * params)
 {
     char line[256];
@@ -118,8 +187,30 @@ void * control_thread(void * params)
     return NULL;
 }
 
-
-void acceptClients(int qid, struct queue * pq)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            acceptClients
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void acceptCleints (const int qid, struct queue * pq)
+--                          const int qid: The id of the message queue.
+--                          struct queue * pq: A pointer the the queue of clients.
+--
+-- RETURNS:             void.
+--
+-- NOTES:
+-- This function is called once per iteration of the main server loop. It makes a non-blocking call to the queue to
+-- check if there are any new clients that should be added to the client queue. If there is a new request, this function
+-- will check if the requested file could be openned. If yes the client is added, otherwise a message is sent to that
+-- client and it is not added to the queue.
+----------------------------------------------------------------------------------------------------------------------*/
+void acceptClients(const int qid, struct queue * pq)
 {
     int tmp;
     struct msgbuf buffer;
@@ -170,7 +261,28 @@ void acceptClients(int qid, struct queue * pq)
     }
 }
 
-
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            parseClientRequest
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void parseClientRequest (const char * message, int * pid, int * priority, char * filename)
+--                          const char * message: The message sent to the server by the client.
+--                          int * pid: Where the parsed process id will be placed.
+--                          int * priority: Where the parsed priority value will be placed.
+--                          char * filename: Where the pared filename will be placed.
+--
+-- RETURNS:             void.
+--
+-- NOTES:
+-- Parsed the client's initial request message into its process id, priority and filename.
+----------------------------------------------------------------------------------------------------------------------*/
 void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
 {
     int i;
@@ -202,8 +314,29 @@ void parseClientRequest(const char * message, int * pid, int * priority, char * 
     memcpy(filename, fileStart, strlen(fileStart));
 }
 
-
-int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            addClientToQueue
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int addClientToQueue (struct queue * pq, const int pid, const int priority, FILE * file)
+--                          struct queue * pq: The pointer to the client queue.
+--                          const int pid: The process id of the client.
+--                          const int priority: The prority value of the client.
+--                          FILE * file: The file pointer to the client's requested file.
+--
+-- RETURNS:             The size of the queue after the client has been added.
+--
+-- NOTES:
+-- Reallocates the client queue, creates a new client with the give values, and adds the requested client to it.
+----------------------------------------------------------------------------------------------------------------------*/
+int addClientToQueue(struct queue * pq, const int pid, const int priority, FILE * file)
 {
     struct client_data client;
     struct client_data * oldQueue;
@@ -230,7 +363,25 @@ int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
     return pq->size;
 }
 
-
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            removeFinishedClients
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int removeFinishedClients (struct queue * pq)
+--                          struct queue * pq: A pointer to the client queue.
+--
+-- RETURNS:             The number of clients removed.
+--
+-- NOTES:
+-- Removes any client that is flagged as completed and reallocates the structure.
+----------------------------------------------------------------------------------------------------------------------*/
 int removeFinishedClients(struct queue * pq)
 {
     int i;
@@ -260,8 +411,26 @@ int removeFinishedClients(struct queue * pq)
     return x;
 }
 
-
-int clearQueue(struct queue * pq)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            clearQueue
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int clearQueue (struct queue * pq)
+--                          struct queue * pq: A pointer to the client queue.
+--
+-- RETURNS:             The number of clients removed.
+--
+-- NOTES:
+-- Removes all clients from the queue.
+----------------------------------------------------------------------------------------------------------------------*/
+void clearQueue(struct queue * pq)
 {
     int i;
     for (i = 0; i < pq->size; i++)
@@ -269,5 +438,4 @@ int clearQueue(struct queue * pq)
         close_file(&(pq->q[i].file));
     }
     free(pq->q);
-    return 1;
 }

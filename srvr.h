@@ -28,12 +28,12 @@ int srvr(const int qid);
 
 void * control_thread(void * params);
 
-void acceptClients(int qid, struct queue * pClientQueue);
+void acceptClients(const int qid, struct queue * pClientQueue);
 void parseClientRequest(const char * message, int * pid, int * priority, char * filename);
 
-int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file);
+int addClientToQueue(struct queue * pq, const int pid, const int priority, FILE * file);
 int removeFinishedClients(struct queue * pq);
-int clearQueue(struct queue * pq);
+void clearQueue(struct queue * pq);
 
 
 #endif

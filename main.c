@@ -53,6 +53,7 @@
 --
 -- NOTES:
 -- The main entry point of the program. Main will parse the command line arguements and start the client or server.
+-- If server is specified, this function will also create the queue.
 ----------------------------------------------------------------------------------------------------------------------*/
 int main(int argc, char * argv[])
 {
