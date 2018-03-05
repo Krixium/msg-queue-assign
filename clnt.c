@@ -34,12 +34,18 @@ int clnt(const int qid, const int priority, const char * filename)
     {
         // If it did, print the error and return
         printf("%s\n", mBuffer.mtext);
+        fflush(stdout);
         return 0;
     }
     else
     {
         // Otherwise, print the first part of the file
         printf("%s", mBuffer.mtext);
+        fflush(stdout);
+        if (mBuffer.mlen > MSGSIZE)
+        {
+            return 0;
+        }
     }
 
     // If the message is not full that means it is the last one
