@@ -84,12 +84,6 @@ int main(int argc, char * argv[])
             perror("Error with server");
             exit(1);
         }
-
-        if (remove_queue(qid) == -1)
-        {
-            perror("Problem with closing the queue");
-            exit(1);
-        }
     }
     // Client
     else

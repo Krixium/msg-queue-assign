@@ -149,20 +149,17 @@ int close_file_unsafe(FILE ** fp)
 ----------------------------------------------------------------------------------------------------------------------*/
 size_t read_file(FILE * file, struct msgbuf * msg)
 {
-    size_t result;
+    size_t result = 0;
 
     pthread_mutex_lock(&mutex);
-    if (file == NULL)
-    {
-        result = 0;
-    }
-    else
+    if (file != NULL)
     {
         memset(msg->mtext, 0, sizeof(char) * MSGSIZE);
-        result = fread(msg->mtext, 1, MSGSIZE - 1, file);
+        result = fread(msg->mtext, sizeof(char), MSGSIZE - 1, file);
         msg->mtext[result] = '\0';
         msg->mlen = result + 1;
     }
     pthread_mutex_unlock(&mutex);
+
     return result;
 }

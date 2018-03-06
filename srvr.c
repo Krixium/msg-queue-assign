@@ -55,24 +55,21 @@ pthread_mutex_t mutex;
 ----------------------------------------------------------------------------------------------------------------------*/
 int srvr(const int qid)
 {
-    // queue to hold all the clients
-    struct queue clntQueue;
-
     // Threading variable
     pthread_t controlThread;
     int running = 1;
 
-    int i;
-    int j;
-    int res;
-    int pleaseRemove;
-    struct msgbuf sendBuffer;
-    struct client_data * pc;
+    // Client
+    int pid;
+    int priority;
+    char filename[MSGSIZE];
+    FILE * file;
 
-    // Init the client queue
-    memset(&clntQueue, 0, sizeof(struct queue));
-    clntQueue.size = 0;
-    clntQueue.q = (struct client_data *)malloc(0);
+    int i;
+    int res;
+    int returnCode = 0;
+    int pleaseQuit = 0;
+    struct msgbuf sendBuffer;
 
     // Start thread to check if program should stop running
     if (pthread_create(&controlThread, NULL, control_thread, (void *)&running))
@@ -81,60 +78,73 @@ int srvr(const int qid)
         return 1;
     }
 
-    pleaseRemove = 0;
     while (running)
     {
-        acceptClients(qid, &clntQueue);
-
-        for (i = 0; i < clntQueue.size; i++)
+        if (!acceptClients(qid, &pid, &priority, filename))
         {
-            pc = &clntQueue.q[i];
+            sched_yield();
+            continue;
+        }
 
-            if (pc->finished)
+        // Fork and serve if it is the child
+        if (!fork())
+        {
+            file = fopen(filename, "r");
+
+            if (file == NULL)
             {
-                continue;
+                perror("Could not open file");
+                return 0;
             }
 
-            sendBuffer.mtype = pc->pid;
-            for (j = 0; j < pc->priority; j++)
+            printf("%d> child started\n", getpid());
+            sendBuffer.mtype = pid;
+
+            while (!feof(file))
             {
-                res = read_file(pc->file, &sendBuffer);
-                if (res >= 0)
+                // lock semaphore here
+                for (i = 0; i < priority; i++)
                 {
+                    res = read_file(file, &sendBuffer);
+
                     if (res == 0)
                     {
-                        printf("server> client %d is finished, flagging\n", pc->pid);
-                        fflush(stdout);
-                        pc->finished = 1;
-                        pleaseRemove = 1;
-                        break;
+                        returnCode = 0;
+                        pleaseQuit = 1;
+                    }
+
+                    if (res < 0)
+                    {
+                        perror("Problem reading from file");
+                        returnCode = pleaseQuit = 1;
                     }
 
                     if (send_message(qid, &sendBuffer) == -1)
                     {
                         perror("Problem sending message");
-                        running = 0;
-                        break;
+                        returnCode = pleaseQuit = 1;
                     }
+                    usleep(5000);
                 }
-                else
+                // unlock semaphore here
+
+                if (pleaseQuit)
                 {
-                    perror("Problem reading from file");
-                    pc->finished = 1;
-                    pleaseRemove = 1;
                     break;
                 }
             }
-        }
 
-        if (pleaseRemove)
-        {
-            removeFinishedClients(&clntQueue);
-            pleaseRemove = 0;
+            printf("%d> child is finished and exiting\n", getpid());
+            return returnCode;
         }
     }
 
-    clearQueue(&clntQueue);
+    if (remove_queue(qid) == -1)
+    {
+        perror("Problem with closing the queue");
+        return(1);
+    }
+
     return 0;
 }
 
@@ -160,6 +170,7 @@ int srvr(const int qid)
 ----------------------------------------------------------------------------------------------------------------------*/
 void * control_thread(void * params)
 {
+    // TODO: SEND KILL SIGNAL TO ALL CHILDREN
     char line[256];
     char command[256];
     int * pRunning = (int *)params;
@@ -183,6 +194,7 @@ void * control_thread(void * params)
         sched_yield();
     }
 
+    kill(0, SIGINT);
     return NULL;
 }
 
@@ -197,26 +209,20 @@ void * control_thread(void * params)
 --
 -- PROGRAMMER:          Benny Wang
 --
--- INTERFACE:           void acceptCleints (const int qid, struct queue * pq)
+-- INTERFACE:           int acceptCleints (const int qid, int * pPid, int * pPriority, FILE * pFile)
 --                          const int qid: The id of the message queue.
---                          struct queue * pq: A pointer the the queue of clients.
+--                          int * pPid: A pointer to where to store the client pid.
+--                          int * pPriority: A pointer to where to store the cleint priority.
+--                          FILE * pFile: A pointer to where to store the requested file.
 --
--- RETURNS:             void.
+-- RETURNS:             1 if a client was added, 0 otherwise.
 --
 -- NOTES:
--- This function is called once per iteration of the main server loop. It makes a non-blocking call to the queue to
--- check if there are any new clients that should be added to the client queue. If there is a new request, this function
--- will check if the requested file could be openned. If yes the client is added, otherwise a message is sent to that
--- client and it is not added to the queue.
+-- TODO: Fill out documentation.
 ----------------------------------------------------------------------------------------------------------------------*/
-void acceptClients(const int qid, struct queue * pq)
+int acceptClients(const int qid, int * pPid, int * pPriority, char * filename)
 {
-    int tmp;
     struct msgbuf buffer;
-    char filename[MSGSIZE];
-    int pid;
-    int priority;
-    FILE * fp;
 
     memset(&buffer, 0, sizeof(struct msgbuf));
 
@@ -227,37 +233,11 @@ void acceptClients(const int qid, struct queue * pq)
 
         // Grab the filename and pid
         memset(filename, 0, MSGSIZE);
-        parseClientRequest(buffer.mtext, &pid, &priority, filename);
-        fp = open_file(filename, "r");
-
-        // If the file couldn't be oppened
-        if (fp == NULL)
-        {
-            // Respond with an error
-            buffer.mtype = pid;
-            strcpy(buffer.mtext, "Error: Could not open file");
-            buffer.mlen = 27;
-
-            perror("Could not open file");
-
-            if (send_message(qid, &buffer) == -1)
-            {
-                perror("Problem sending error message to client");
-                return;
-            }
-        }
-        else
-        {
-            tmp = pq->size;
-            if (addClientToQueue(pq, pid, priority, fp) == tmp)
-            {
-                perror("Realloc error");
-                return;
-            }
-            printf("server> New client %d added\n", pid);
-            fflush(stdout);
-        }
+        parseClientRequest(buffer.mtext, pPid, pPriority, filename);
+        return 1;
     }
+
+    return 0;
 }
 
 /*------------------------------------------------------------------------------------------------------------------
@@ -311,130 +291,4 @@ void parseClientRequest(const char * message, int * pid, int * priority, char * 
     *pid = atoi(pidStart);
     *priority = atoi(priorityStart);
     memcpy(filename, fileStart, strlen(fileStart));
-}
-
-/*------------------------------------------------------------------------------------------------------------------
--- FUNCTION:            addClientToQueue
---
--- DATE:                March 5, 2018
---
--- REVISIONS:           N/A
---
--- DESIGNER:            Benny Wang
---
--- PROGRAMMER:          Benny Wang
---
--- INTERFACE:           int addClientToQueue (struct queue * pq, const int pid, const int priority, FILE * file)
---                          struct queue * pq: The pointer to the client queue.
---                          const int pid: The process id of the client.
---                          const int priority: The prority value of the client.
---                          FILE * file: The file pointer to the client's requested file.
---
--- RETURNS:             The size of the queue after the client has been added.
---
--- NOTES:
--- Reallocates the client queue, creates a new client with the give values, and adds the requested client to it.
-----------------------------------------------------------------------------------------------------------------------*/
-int addClientToQueue(struct queue * pq, const int pid, const int priority, FILE * file)
-{
-    struct client_data client;
-    struct client_data * oldQueue;
-
-    client.pid = pid;
-    client.finished = 0;
-    client.priority = priority;
-    client.file = file;
-
-    pthread_mutex_lock(&mutex);
-    oldQueue = pq->q;
-    pq->q = (struct client_data *)realloc(pq->q, (pq->size + 1) * sizeof(struct client_data));
-    if (pq->q == NULL)
-    {
-        pq->q = oldQueue;
-    }
-    else
-    {
-        pq->q[pq->size] = client;
-        pq->size++;
-    }
-    pthread_mutex_unlock(&mutex);
-
-    return pq->size;
-}
-
-/*------------------------------------------------------------------------------------------------------------------
--- FUNCTION:            removeFinishedClients
---
--- DATE:                March 5, 2018
---
--- REVISIONS:           N/A
---
--- DESIGNER:            Benny Wang
---
--- PROGRAMMER:          Benny Wang
---
--- INTERFACE:           int removeFinishedClients (struct queue * pq)
---                          struct queue * pq: A pointer to the client queue.
---
--- RETURNS:             The number of clients removed.
---
--- NOTES:
--- Removes any client that is flagged as completed and reallocates the structure.
-----------------------------------------------------------------------------------------------------------------------*/
-int removeFinishedClients(struct queue * pq)
-{
-    int i;
-    int j;
-    int x;
-
-    x = 0;
-    pthread_mutex_lock(&mutex);
-    for (i = pq->size; i > 0; i--)
-    {
-        if (pq->q[i - 1].finished)
-        {
-            close_file_unsafe(&(pq->q[i - 1].file));
-
-            for (j = i - 1; j < pq->size - 1; j++)   
-            {
-                pq->q[j] = pq->q[j + 1];
-            }
-
-            x++;
-        }
-    }
-    pq->size -= x;
-    pq->q = (struct client_data *)realloc(pq->q, sizeof(struct client_data) * pq->size);
-    pthread_mutex_unlock(&mutex);
-
-    return x;
-}
-
-/*------------------------------------------------------------------------------------------------------------------
--- FUNCTION:            clearQueue
---
--- DATE:                March 5, 2018
---
--- REVISIONS:           N/A
---
--- DESIGNER:            Benny Wang
---
--- PROGRAMMER:          Benny Wang
---
--- INTERFACE:           int clearQueue (struct queue * pq)
---                          struct queue * pq: A pointer to the client queue.
---
--- RETURNS:             The number of clients removed.
---
--- NOTES:
--- Removes all clients from the queue.
-----------------------------------------------------------------------------------------------------------------------*/
-void clearQueue(struct queue * pq)
-{
-    int i;
-    for (i = 0; i < pq->size; i++)
-    {
-        close_file(&(pq->q[i].file));
-    }
-    free(pq->q);
 }
