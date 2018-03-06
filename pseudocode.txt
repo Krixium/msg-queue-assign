@@ -13,15 +13,15 @@ main
 server
     while the program is running
         if there is a new client
-            addClient(pid, priority, file)
+            store the client pid, priority, file
+            fork
+            if child
+                while not done with file
+                    lock semaphore
+                    send priority times
+                    unlock semaphore
+                exit
             
-        for every client in the queue
-            server 1 message to that client
-            if the last message was served
-                flag the client to be removed
-        
-        removeFlaggedClients
-
 
 addClient
     open the file

@@ -96,7 +96,6 @@ int srvr(const int qid)
             }
 
             sendBuffer.mtype = pc->pid;
-
             for (j = 0; j < pc->priority; j++)
             {
                 res = read_file(pc->file, &sendBuffer);
