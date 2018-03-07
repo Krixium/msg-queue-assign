@@ -24,8 +24,6 @@
 ----------------------------------------------------------------------------------------------------------------------*/
 #include "msgq.h"
 
-pthread_mutex_t mutex;
-
 /*------------------------------------------------------------------------------------------------------------------
 -- FUNCTION:            open_queue
 --
@@ -43,15 +41,13 @@ pthread_mutex_t mutex;
 -- RETURNS:             -1 if the queue failed to open, otherwise a positive integer.
 --
 -- NOTES:
--- Opens a new message queue. This function is thread safe.
+-- Opens a new message queue.
 ----------------------------------------------------------------------------------------------------------------------*/
 int open_queue(const key_t keyval)
 {
     int qid;
 
-    pthread_mutex_lock(&mutex);
 	qid = msgget(keyval, IPC_CREAT | 0660);
-    pthread_mutex_unlock(&mutex);
 
     return qid;
 }
@@ -74,15 +70,13 @@ int open_queue(const key_t keyval)
 -- RETURNS:             The number of bytes written to the message queue, -1 if writing failed.
 --
 -- NOTES:
--- Writes a message to the message queue with a blocking call. This function is thread safe.
+-- Writes a message to the message queue with a blocking call.
 ----------------------------------------------------------------------------------------------------------------------*/
 int send_message(const int msg_qid, struct msgbuf * qbuf)
 {
     int result;
 
-    pthread_mutex_lock(&mutex);
 	result = msgsnd(msg_qid, qbuf, qbuf->mlen, 0);
-    pthread_mutex_unlock(&mutex);
 
     return result;
 }
@@ -106,16 +100,14 @@ int send_message(const int msg_qid, struct msgbuf * qbuf)
 -- RETURNS:             The number of bytes read from the message queue, -1 if reading failed.
 --
 -- NOTES:
--- Reads a message from the message queue with a non-blocking call. This function is thread safe.
+-- Reads a message from the message queue with a non-blocking call.
 ----------------------------------------------------------------------------------------------------------------------*/
 int read_message(const int qid, const long type, struct msgbuf * qbuf)
 {
     int result;
 
-	pthread_mutex_lock(&mutex);
     result = msgrcv(qid, qbuf, MSGSIZE, type, IPC_NOWAIT);
     qbuf->mlen = result;
-	pthread_mutex_unlock(&mutex);
 
     return result;
 }
@@ -139,16 +131,14 @@ int read_message(const int qid, const long type, struct msgbuf * qbuf)
 -- RETURNS:             The number of bytes read from the message queue, -1 if reading failed.
 --
 -- NOTES:
--- Reads a message from the message queue with a blocking call. This function is thread safe.
+-- Reads a message from the message queue with a blocking call.
 ----------------------------------------------------------------------------------------------------------------------*/
 int read_message_blocking(const int qid, const long type, struct msgbuf * qbuf)
 {
     int result;
 
-	pthread_mutex_lock(&mutex);
     result = msgrcv(qid, qbuf, MSGSIZE, type, 0);
     qbuf->mlen = result;
-	pthread_mutex_unlock(&mutex);
 
     return result;
 }
@@ -170,19 +160,13 @@ int read_message_blocking(const int qid, const long type, struct msgbuf * qbuf)
 -- RETURNS:             -1 if removing failed, a positive integer otherwise.
 --
 -- NOTES:
--- Removes a message queue. This function will unlock the mutex even if a blocking read/right is occuring.
+-- Removes a message queue.
 ----------------------------------------------------------------------------------------------------------------------*/
 int remove_queue(const int qid)
 {
 	int result;
 
-	if (pthread_mutex_trylock(&mutex))
-    {
-        pthread_mutex_unlock(&mutex);
-        pthread_mutex_lock(&mutex);
-    }
     result = msgctl(qid, IPC_RMID, 0);
-	pthread_mutex_unlock(&mutex);
 
     return result;
 }
