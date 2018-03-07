@@ -268,7 +268,7 @@ int acceptClients(const int qid, int * pPid, int * pPriority, char * filename)
     memset(&buffer, 0, sizeof(struct msgbuf));
 
     // If a new client is found...
-    if (read_message(qid, C_TO_S, &buffer) > 0)
+    if (read_message_blocking(qid, C_TO_S, &buffer) > 0)
     {
         printf("server> New request: [%s]\n", buffer.mtext);
 
