@@ -1,8 +1,6 @@
 main
     if server program
-        make queue
         start server
-        remove queue
         exit
 
     if client
@@ -11,41 +9,47 @@ main
 
 
 server
+    create thread
+    create semaphore
+    create queue
+    
     while the program is running
         if there is a new client
             store the client pid, priority, file
             fork
+
+            open the file
+                if the file could not be openned exit
+
             if child
                 while not done with file
                     lock semaphore
                     send priority times
                     unlock semaphore
-                exit
+                child exit
             
+    close queue
+    close semaphore
+    join thread
 
 addClient
-    open the file
-        if there is an error
-            reply with error message
-            return
-        else
-            create client structure
-            add the client to the queue x amount of times based on priority
-            [high = 16, normal = 4, low = 1]
-
-
-removeFlaggedClients
-    loop through the queue backwards
-        if the client was flagged as completed
-            remove it
+    listen for new client request
+        if client request is found
+            parse client request to pid, priority, filename
 
 
 client(qid)
     get pid
     create message buffer
-    write filename, priority, and pid to msg queue with mtype 1
-    
-    while reading from msg queue doesnt return an error
-        save message to buffer
-        display buffer
-    
+
+    while running
+        read from message queue
+        if data was read
+            display to buffer
+
+client thread
+    if new data on stdin
+        if command
+            execute command
+        else
+            send request to server with stdin as filename
