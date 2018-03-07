@@ -69,7 +69,7 @@ int clnt(const int qid, const int priority)
     while (running)
     {
         memset(&mBuffer, 0, sizeof(struct msgbuf));
-        if (read_message(qid, pid, &mBuffer) <= 0)
+        if (read_message_blocking(qid, pid, &mBuffer) <= 0)
         {
             sched_yield();
             continue;
@@ -144,6 +144,7 @@ void * client_control(void * params)
                     pthread_mutex_lock(&mutex);
                     *pRunning = 0;
                     pthread_mutex_unlock(&mutex);
+                    kill(0, SIGINT);
                 }
                 else
                 {
