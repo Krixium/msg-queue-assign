@@ -4,13 +4,12 @@
 -- PROGRAM:             assign2
 --
 -- FUNCTIONS:
---                      int srvr(const int qid)
---                      void * control_thread(void * params)
---                      void acceptClients(const int qid, struct queue * pClientQueue)
+--
+--                      int srvr()
+--                      void * server_control(void * params)
+--                      void catchSig(int sig)
+--                      int acceptClients(int * pPid, int * pPriority, char * pFile)
 --                      void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
---                      int addClientToQueue(struct queue * pq, const int pid, const int priotiy, FILE * file)
---                      int removeFinishedClients(struct queue * pq)
---                      void clearQueue(struct queue * pq)
 --
 --
 -- DATE:                March 5, 2018
@@ -28,6 +27,8 @@
 #include <errno.h>
 
 pthread_mutex_t mutex;
+static int serverQID;
+static int globalSID;
 
 /*------------------------------------------------------------------------------------------------------------------
 -- FUNCTION:            srvr
@@ -59,9 +60,6 @@ int srvr()
     pthread_t controlThread;
     int running = 1;
 
-    int qid;
-    int sid;
-
     // Client
     int pid;
     int priority;
@@ -74,6 +72,9 @@ int srvr()
     int pleaseQuit = 0;
     struct msgbuf sendBuffer;
 
+    // Exit signal
+    signal(SIGINT, catchSig);
+
     // Start thread to check if program should stop running
     if (pthread_create(&controlThread, NULL, server_control, (void *)&running))
     {
@@ -82,28 +83,28 @@ int srvr()
     }
 
     // Open queue
-    if ((qid = open_queue((int)getpid())) == -1)
+    if ((serverQID = open_queue((int)getpid())) == -1)
     {
         perror("Could not open queue");
         return 1;
     }
     else
     {
-        fprintf(stdout, "Use './assign2 [high|normal|low] %d' to make a request to this server\n", qid);
+        fprintf(stdout, "Use './assign2 [high|normal|low] %d' to make a request to this server\n", serverQID);
         fflush(stdout);
     }
 
-    if ((sid = create_semaphore((int)getpid())) < 0)
+    if ((globalSID = create_semaphore((int)getpid())) < 0)
     {
         perror("Could not create semaphore");
         return 1;
     }
 
-    V(sid);
+    V(globalSID);
 
     while (running)
     {
-        if (!acceptClients(qid, &pid, &priority, filename))
+        if (!acceptClients(&pid, &priority, filename))
         {
             sched_yield();
             continue;
@@ -120,7 +121,7 @@ int srvr()
                 strcpy(sendBuffer.mtext, "Error: Could not open file");
                 sendBuffer.mlen = 27;
 
-                if (send_message(qid, &sendBuffer) == -1)
+                if (send_message(serverQID, &sendBuffer) == -1)
                 {
                     perror("Problem sending to client");
                 }
@@ -134,7 +135,7 @@ int srvr()
 
             while (!feof(file))
             {
-                P(sid);
+                P(globalSID);
                 for (i = 0; i < priority; i++)
                 {
                     res = read_file(file, &sendBuffer);
@@ -151,13 +152,13 @@ int srvr()
                         returnCode = pleaseQuit = 1;
                     }
 
-                    if (send_message(qid, &sendBuffer) == -1)
+                    if (send_message(serverQID, &sendBuffer) == -1)
                     {
                         perror("Problem sending message");
                         returnCode = pleaseQuit = 1;
                     }
                 }
-                V(sid);
+                V(globalSID);
 
                 sched_yield();
 
@@ -172,20 +173,19 @@ int srvr()
         }
     }
 
-    if (remove_semaphore(sid) == -1)
+    if (remove_semaphore(globalSID) == -1)
     {
         perror("Could not remove semaphore");
     }
 
     // Close queue when parent exits
-    if (remove_queue(qid) == -1)
+    if (remove_queue(serverQID) == -1)
     {
         perror("Problem with closing the queue");
         return(1);
     }
 
     pthread_join(controlThread, 0);
-    kill(0, SIGINT);
     return 0;
 }
 
@@ -224,9 +224,8 @@ void * server_control(void * params)
                 if (!strcmp(command, "quit") || !strcmp(command, "stop") 
                 || !strcmp(command, "q") || !strcmp(command, "s"))
                 {
-                    pthread_mutex_lock(&mutex);
+                    kill(0, SIGINT);
                     *pRunning = 0;
-                    pthread_mutex_unlock(&mutex);
                 }
             }
         }
@@ -235,6 +234,33 @@ void * server_control(void * params)
     }
 
     return NULL;
+}
+
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            server_control
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void catchSig (int sig)
+--                          int sig: The signal.
+--
+-- RETURNS:             void.
+--
+-- NOTES:
+-- This function catches the SIGINT signal. Once caught, this function will close the message queue and remove the 
+-- semaphore.
+----------------------------------------------------------------------------------------------------------------------*/
+void catchSig(int sig)
+{
+    remove_semaphore(globalSID);
+    remove_queue(serverQID);
+    exit(0);
 }
 
 /*------------------------------------------------------------------------------------------------------------------
@@ -248,8 +274,7 @@ void * server_control(void * params)
 --
 -- PROGRAMMER:          Benny Wang
 --
--- INTERFACE:           int acceptCleints (const int qid, int * pPid, int * pPriority, FILE * pFile)
---                          const int qid: The id of the message queue.
+-- INTERFACE:           int acceptCleints (int * pPid, int * pPriority, FILE * pFile)
 --                          int * pPid: A pointer to where to store the client pid.
 --                          int * pPriority: A pointer to where to store the cleint priority.
 --                          FILE * pFile: A pointer to where to store the requested file.
@@ -257,18 +282,18 @@ void * server_control(void * params)
 -- RETURNS:             1 if a client was added, 0 otherwise.
 --
 -- NOTES:
--- This function will make a non-blocking read to the message queue to check if there are any new requests from clients.
+-- This function will make a blocking read to the message queue to check if there are any new requests from clients.
 -- If there is a new request from a new client, this funciton will parse the pid, desired priority, and filename and
 -- fill the approriate variables.
 ----------------------------------------------------------------------------------------------------------------------*/
-int acceptClients(const int qid, int * pPid, int * pPriority, char * filename)
+int acceptClients(int * pPid, int * pPriority, char * filename)
 {
     struct msgbuf buffer;
 
     memset(&buffer, 0, sizeof(struct msgbuf));
 
     // If a new client is found...
-    if (read_message_blocking(qid, C_TO_S, &buffer) > 0)
+    if (read_message_blocking(serverQID, C_TO_S, &buffer) > 0)
     {
         printf("server> New request: [%s]\n", buffer.mtext);
 

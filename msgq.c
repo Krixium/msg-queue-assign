@@ -170,13 +170,17 @@ int read_message_blocking(const int qid, const long type, struct msgbuf * qbuf)
 -- RETURNS:             -1 if removing failed, a positive integer otherwise.
 --
 -- NOTES:
--- Removes a message queue.
+-- Removes a message queue. This function will unlock the mutex even if a blocking read/right is occuring.
 ----------------------------------------------------------------------------------------------------------------------*/
 int remove_queue(const int qid)
 {
 	int result;
 
-	pthread_mutex_lock(&mutex);
+	if (pthread_mutex_trylock(&mutex))
+    {
+        pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&mutex);
+    }
     result = msgctl(qid, IPC_RMID, 0);
 	pthread_mutex_unlock(&mutex);
 
