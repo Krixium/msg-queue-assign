@@ -75,7 +75,7 @@ int main(int argc, char * argv[])
         int priority = 2;
         char * p;
 
-        if (argc != 4)
+        if (argc != 3)
         {
             printUsage();
             return 0;
@@ -104,7 +104,7 @@ int main(int argc, char * argv[])
             exit(0);
         }
 
-        if (clnt(qid, priority, argv[3]) != 0)
+        if (clnt(qid, priority) != 0)
         {
             perror("Error with client");
             exit(1);
@@ -135,5 +135,5 @@ int main(int argc, char * argv[])
 
 void printUsage()
 {
-    printf("Usage: ./assign2 [server|[high | normal | low] qid filename]\n");
+    printf("Usage: ./assign2 [server|[high | normal | low] qid]\n");
 }
