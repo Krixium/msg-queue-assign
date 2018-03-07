@@ -57,7 +57,6 @@
 ----------------------------------------------------------------------------------------------------------------------*/
 int main(int argc, char * argv[])
 {
-    int pid;
     int qid;
 
     if (argc < 2)
@@ -68,22 +67,7 @@ int main(int argc, char * argv[])
     // Server
     if (!strcmp(argv[1], "server"))
     {
-        pid = (int)getpid();
-        if ((qid = open_queue(pid)) == -1)
-        {
-            perror("Could not open queue");
-            exit(1);
-        }
-
-        fprintf(stdout, "Use './assign2 [high|normal|low] %d [filename]' to make a request to this server\n", qid);
-        fflush(stdout);
-
-        if (srvr(qid) != 0)
-        {
-            remove_queue(qid);
-            perror("Error with server");
-            exit(1);
-        }
+        return srvr();
     }
     // Client
     else
@@ -119,7 +103,6 @@ int main(int argc, char * argv[])
             printUsage();
             exit(0);
         }
-        
 
         if (clnt(qid, priority, argv[3]) != 0)
         {

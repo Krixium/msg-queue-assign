@@ -10,9 +10,10 @@
 #include "files.h"
 #include "msgq.h"
 #include "threads.h"
+#include "sema.h"
 
 
-int srvr(const int qid);
+int srvr();
 
 void * control_thread(void * params);
 

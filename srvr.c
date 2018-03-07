@@ -25,6 +25,7 @@
 -- This file contains all the code for the server.
 ----------------------------------------------------------------------------------------------------------------------*/
 #include "srvr.h"
+#include <errno.h>
 
 pthread_mutex_t mutex;
 
@@ -39,25 +40,27 @@ pthread_mutex_t mutex;
 --
 -- PROGRAMMER:          Benny Wang
 --
--- INTERFACE:           int srvr (const int qid)
---                          const int qid: The message queue id of the server.
+-- INTERFACE:           int srvr ()
 --
 -- RETURNS:             The exit code.
 --
 -- NOTES:
 -- The main entry point of the server. The server will:
--- 1) Create the control thread.
--- 2) Check if there are new clients
--- 3) Serve any existing clients
--- 4) Remove any old clients
+-- 1) Create the control thread, semaphore and message queue.
+-- 2) Check if there is a new client request.
+--      If there is this function will fork a new process to serve it
+-- 3) Take care of any house keeping when user wants to quit.
 --
 -- The server will only exit when the user types quit, stop, q, or s.
 ----------------------------------------------------------------------------------------------------------------------*/
-int srvr(const int qid)
+int srvr()
 {
     // Threading variable
     pthread_t controlThread;
     int running = 1;
+
+    int qid;
+    int sid;
 
     // Client
     int pid;
@@ -78,6 +81,26 @@ int srvr(const int qid)
         return 1;
     }
 
+    // Open queue
+    if ((qid = open_queue((int)getpid())) == -1)
+    {
+        perror("Could not open queue");
+        return 1;
+    }
+    else
+    {
+        fprintf(stdout, "Use './assign2 [high|normal|low] %d [filename]' to make a request to this server\n", qid);
+        fflush(stdout);
+    }
+
+    if ((sid = create_semaphore((int)getpid())) < 0)
+    {
+        perror("Could not create semaphore");
+        return 1;
+    }
+
+    V(sid);
+
     while (running)
     {
         if (!acceptClients(qid, &pid, &priority, filename))
@@ -93,6 +116,15 @@ int srvr(const int qid)
 
             if (file == NULL)
             {
+                sendBuffer.mtype = pid;
+                strcpy(sendBuffer.mtext, "Error: Could not open file");
+                sendBuffer.mlen = 27;
+
+                if (send_message(qid, &sendBuffer) == -1)
+                {
+                    perror("Problem sending to client");
+                }
+
                 perror("Could not open file");
                 return 0;
             }
@@ -102,7 +134,7 @@ int srvr(const int qid)
 
             while (!feof(file))
             {
-                // lock semaphore here
+                P(sid);
                 for (i = 0; i < priority; i++)
                 {
                     res = read_file(file, &sendBuffer);
@@ -124,9 +156,10 @@ int srvr(const int qid)
                         perror("Problem sending message");
                         returnCode = pleaseQuit = 1;
                     }
-                    usleep(5000);
                 }
-                // unlock semaphore here
+                V(sid);
+
+                sched_yield();
 
                 if (pleaseQuit)
                 {
@@ -139,12 +172,19 @@ int srvr(const int qid)
         }
     }
 
+    if (remove_semaphore(sid) == -1)
+    {
+        perror("Could not remove semaphore");
+    }
+
+    // Close queue when parent exits
     if (remove_queue(qid) == -1)
     {
         perror("Problem with closing the queue");
         return(1);
     }
 
+    kill(0, SIGINT);
     return 0;
 }
 
@@ -170,7 +210,6 @@ int srvr(const int qid)
 ----------------------------------------------------------------------------------------------------------------------*/
 void * control_thread(void * params)
 {
-    // TODO: SEND KILL SIGNAL TO ALL CHILDREN
     char line[256];
     char command[256];
     int * pRunning = (int *)params;
@@ -194,7 +233,6 @@ void * control_thread(void * params)
         sched_yield();
     }
 
-    kill(0, SIGINT);
     return NULL;
 }
 
@@ -218,7 +256,9 @@ void * control_thread(void * params)
 -- RETURNS:             1 if a client was added, 0 otherwise.
 --
 -- NOTES:
--- TODO: Fill out documentation.
+-- This function will make a non-blocking read to the message queue to check if there are any new requests from clients.
+-- If there is a new request from a new client, this funciton will parse the pid, desired priority, and filename and
+-- fill the approriate variables.
 ----------------------------------------------------------------------------------------------------------------------*/
 int acceptClients(const int qid, int * pPid, int * pPriority, char * filename)
 {
