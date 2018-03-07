@@ -133,7 +133,6 @@ void * client_control(void * params)
 
     while (*pRunning)
     {
-        printf("client> ");
         if (fgets(line, MSGSIZE, stdin))
         {
             if (sscanf(line, "%s", command) == 1)
@@ -146,17 +145,19 @@ void * client_control(void * params)
                     *pRunning = 0;
                     pthread_mutex_unlock(&mutex);
                 }
-
-                // Place the filename and child PID into buffer
-                memset(&buffer, 0, sizeof(struct msgbuf));
-                buffer.mtype = C_TO_S;
-                sprintf(buffer.mtext, "%d/%d\t%s", pid, priority, command);
-                buffer.mlen = strlen(buffer.mtext);                
-
-                // Send the buffer
-                if (send_message(qid, &buffer) == -1)
+                else
                 {
-                    perror("Problem writing to the message queue");
+                    // Place the filename and child PID into buffer
+                    memset(&buffer, 0, sizeof(struct msgbuf));
+                    buffer.mtype = C_TO_S;
+                    sprintf(buffer.mtext, "%d/%d\t%s", pid, priority, command);
+                    buffer.mlen = strlen(buffer.mtext);                
+
+                    // Send the buffer
+                    if (send_message(qid, &buffer) == -1)
+                    {
+                        perror("Problem writing to the message queue");
+                    }
                 }
             }
         }
