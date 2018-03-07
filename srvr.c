@@ -217,7 +217,6 @@ void * server_control(void * params)
 
     while (*pRunning)
     {
-        printf("server> ");
         if (fgets(line, 256, stdin))
         {
             if (sscanf(line, "%s", command) == 1)
