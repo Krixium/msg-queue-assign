@@ -26,7 +26,6 @@
 #include "srvr.h"
 #include <errno.h>
 
-pthread_mutex_t mutex;
 static int serverQID;
 static int globalSID;
 
@@ -274,10 +273,10 @@ void catchSig(int sig)
 --
 -- PROGRAMMER:          Benny Wang
 --
--- INTERFACE:           int acceptCleints (int * pPid, int * pPriority, FILE * pFile)
+-- INTERFACE:           int acceptCleints (int * pPid, int * pPriority, char * filename)
 --                          int * pPid: A pointer to where to store the client pid.
 --                          int * pPriority: A pointer to where to store the cleint priority.
---                          FILE * pFile: A pointer to where to store the requested file.
+--                          char * filename: A pointer to where to store the requested filename.
 --
 -- RETURNS:             1 if a client was added, 0 otherwise.
 --
