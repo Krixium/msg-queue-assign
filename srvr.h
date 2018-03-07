@@ -15,7 +15,7 @@
 
 int srvr();
 
-void * control_thread(void * params);
+void * server_control(void * params);
 
 int acceptClients(const int qid, int * pPid, int * pPriority, char * pFile);
 void parseClientRequest(const char * message, int * pid, int * priority, char * filename);

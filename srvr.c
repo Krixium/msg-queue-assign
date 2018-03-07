@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------------------------------------------
--- SOURCE FILE:         main.c - A client server application that utilizes message queues.
+-- SOURCE FILE:         srvr.c - A client server application that utilizes message queues.
 --
 -- PROGRAM:             assign2
 --
@@ -75,7 +75,7 @@ int srvr()
     struct msgbuf sendBuffer;
 
     // Start thread to check if program should stop running
-    if (pthread_create(&controlThread, NULL, control_thread, (void *)&running))
+    if (pthread_create(&controlThread, NULL, server_control, (void *)&running))
     {
         perror("Could not start thread");
         return 1;
@@ -189,7 +189,7 @@ int srvr()
 }
 
 /*------------------------------------------------------------------------------------------------------------------
--- FUNCTION:            control_thread
+-- FUNCTION:            server_control
 --
 -- DATE:                March 5, 2018
 --
@@ -199,7 +199,7 @@ int srvr()
 --
 -- PROGRAMMER:          Benny Wang
 --
--- INTERFACE:           void * control_thread (void * params)
+-- INTERFACE:           void * server_control (void * params)
 --                          void * params: The parameters.
 --
 -- RETURNS:             NULL.
@@ -208,7 +208,7 @@ int srvr()
 -- This is the callback for the control thread. When the users types in a command this is the thread that handles the
 -- input. Currently only quit, stop, q, and s are supported. They all tell the server to clean up and exit.
 ----------------------------------------------------------------------------------------------------------------------*/
-void * control_thread(void * params)
+void * server_control(void * params)
 {
     char line[256];
     char command[256];
