@@ -89,7 +89,7 @@ int srvr()
     }
     else
     {
-        fprintf(stdout, "Use './assign2 [high|normal|low] %d [filename]' to make a request to this server\n", qid);
+        fprintf(stdout, "Use './assign2 [high|normal|low] %d' to make a request to this server\n", qid);
         fflush(stdout);
     }
 
@@ -184,6 +184,7 @@ int srvr()
         return(1);
     }
 
+    pthread_join(controlThread, 0);
     kill(0, SIGINT);
     return 0;
 }
@@ -216,6 +217,7 @@ void * server_control(void * params)
 
     while (*pRunning)
     {
+        printf("server> ");
         if (fgets(line, 256, stdin))
         {
             if (sscanf(line, "%s", command) == 1)
