@@ -1,96 +1,214 @@
+/*------------------------------------------------------------------------------------------------------------------
+-- SOURCE FILE:         srvr.c - A client server application that utilizes message queues.
+--
+-- PROGRAM:             assign2
+--
+-- FUNCTIONS:
+--                      int srvr(const int qid)
+--                      void * control_thread(void * params)
+--                      void acceptClients(const int qid, struct queue * pClientQueue)
+--                      void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
+--                      int addClientToQueue(struct queue * pq, const int pid, const int priotiy, FILE * file)
+--                      int removeFinishedClients(struct queue * pq)
+--                      void clearQueue(struct queue * pq)
+--
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- NOTES:
+-- This file contains all the code for the server.
+----------------------------------------------------------------------------------------------------------------------*/
 #include "srvr.h"
+#include <errno.h>
 
 pthread_mutex_t mutex;
 
-
-int srvr(const int qid)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            srvr
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int srvr ()
+--
+-- RETURNS:             The exit code.
+--
+-- NOTES:
+-- The main entry point of the server. The server will:
+-- 1) Create the control thread, semaphore and message queue.
+-- 2) Check if there is a new client request.
+--      If there is this function will fork a new process to serve it
+-- 3) Take care of any house keeping when user wants to quit.
+--
+-- The server will only exit when the user types quit, stop, q, or s.
+----------------------------------------------------------------------------------------------------------------------*/
+int srvr()
 {
-    // queue to hold all the clients
-    struct queue clntQueue;
-
     // Threading variable
     pthread_t controlThread;
     int running = 1;
 
-    int i;
-    int j;
-    int res;
-    int pleaseRemove;
-    struct msgbuf sendBuffer;
-    struct client_data * pc;
+    int qid;
+    int sid;
 
-    // Init the client queue
-    memset(&clntQueue, 0, sizeof(struct queue));
-    clntQueue.size = 0;
-    clntQueue.q = (struct client_data *)malloc(0);
+    // Client
+    int pid;
+    int priority;
+    char filename[MSGSIZE];
+    FILE * file;
+
+    int i;
+    int res;
+    int returnCode = 0;
+    int pleaseQuit = 0;
+    struct msgbuf sendBuffer;
 
     // Start thread to check if program should stop running
-    if (pthread_create(&controlThread, NULL, control_thread, (void *)&running))
+    if (pthread_create(&controlThread, NULL, server_control, (void *)&running))
     {
         perror("Could not start thread");
         return 1;
     }
 
-    pleaseRemove = 0;
+    // Open queue
+    if ((qid = open_queue((int)getpid())) == -1)
+    {
+        perror("Could not open queue");
+        return 1;
+    }
+    else
+    {
+        fprintf(stdout, "Use './assign2 [high|normal|low] %d [filename]' to make a request to this server\n", qid);
+        fflush(stdout);
+    }
+
+    if ((sid = create_semaphore((int)getpid())) < 0)
+    {
+        perror("Could not create semaphore");
+        return 1;
+    }
+
+    V(sid);
+
     while (running)
     {
-        acceptClients(qid, &clntQueue);
-
-        for (i = 0; i < clntQueue.size; i++)
+        if (!acceptClients(qid, &pid, &priority, filename))
         {
-            pc = &clntQueue.q[i];
+            sched_yield();
+            continue;
+        }
 
-            if (pc->finished)
+        // Fork and serve if it is the child
+        if (!fork())
+        {
+            file = fopen(filename, "r");
+
+            if (file == NULL)
             {
-                continue;
+                sendBuffer.mtype = pid;
+                strcpy(sendBuffer.mtext, "Error: Could not open file");
+                sendBuffer.mlen = 27;
+
+                if (send_message(qid, &sendBuffer) == -1)
+                {
+                    perror("Problem sending to client");
+                }
+
+                perror("Could not open file");
+                return 0;
             }
 
-            sendBuffer.mtype = pc->pid;
+            printf("%d> child started\n", getpid());
+            sendBuffer.mtype = pid;
 
-            for (j = 0; j < pc->priority; j++)
+            while (!feof(file))
             {
-                res = read_file(pc->file, &sendBuffer);
-                if (res >= 0)
+                P(sid);
+                for (i = 0; i < priority; i++)
                 {
+                    res = read_file(file, &sendBuffer);
+
                     if (res == 0)
                     {
-                        printf("server> client %d is finished, flagging\n", pc->pid);
-                        fflush(stdout);
-                        pc->finished = 1;
-                        pleaseRemove = 1;
-                        break;
+                        returnCode = 0;
+                        pleaseQuit = 1;
+                    }
+
+                    if (res < 0)
+                    {
+                        perror("Problem reading from file");
+                        returnCode = pleaseQuit = 1;
                     }
 
                     if (send_message(qid, &sendBuffer) == -1)
                     {
                         perror("Problem sending message");
-                        running = 0;
-                        break;
+                        returnCode = pleaseQuit = 1;
                     }
                 }
-                else
+                V(sid);
+
+                sched_yield();
+
+                if (pleaseQuit)
                 {
-                    perror("Problem reading from file");
-                    pc->finished = 1;
-                    pleaseRemove = 1;
                     break;
                 }
             }
-        }
 
-        if (pleaseRemove)
-        {
-            removeFinishedClients(&clntQueue);
-            pleaseRemove = 0;
+            printf("%d> child is finished and exiting\n", getpid());
+            return returnCode;
         }
     }
 
-    clearQueue(&clntQueue);
+    if (remove_semaphore(sid) == -1)
+    {
+        perror("Could not remove semaphore");
+    }
+
+    // Close queue when parent exits
+    if (remove_queue(qid) == -1)
+    {
+        perror("Problem with closing the queue");
+        return(1);
+    }
+
+    kill(0, SIGINT);
     return 0;
 }
 
-
-void * control_thread(void * params)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            server_control
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void * server_control (void * params)
+--                          void * params: The parameters.
+--
+-- RETURNS:             NULL.
+--
+-- NOTES:
+-- This is the callback for the control thread. When the users types in a command this is the thread that handles the
+-- input. Currently only quit, stop, q, and s are supported. They all tell the server to clean up and exit.
+----------------------------------------------------------------------------------------------------------------------*/
+void * server_control(void * params)
 {
     char line[256];
     char command[256];
@@ -118,15 +236,33 @@ void * control_thread(void * params)
     return NULL;
 }
 
-
-void acceptClients(int qid, struct queue * pq)
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            acceptClients
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           int acceptCleints (const int qid, int * pPid, int * pPriority, FILE * pFile)
+--                          const int qid: The id of the message queue.
+--                          int * pPid: A pointer to where to store the client pid.
+--                          int * pPriority: A pointer to where to store the cleint priority.
+--                          FILE * pFile: A pointer to where to store the requested file.
+--
+-- RETURNS:             1 if a client was added, 0 otherwise.
+--
+-- NOTES:
+-- This function will make a non-blocking read to the message queue to check if there are any new requests from clients.
+-- If there is a new request from a new client, this funciton will parse the pid, desired priority, and filename and
+-- fill the approriate variables.
+----------------------------------------------------------------------------------------------------------------------*/
+int acceptClients(const int qid, int * pPid, int * pPriority, char * filename)
 {
-    int tmp;
     struct msgbuf buffer;
-    char filename[MSGSIZE];
-    int pid;
-    int priority;
-    FILE * fp;
 
     memset(&buffer, 0, sizeof(struct msgbuf));
 
@@ -136,37 +272,36 @@ void acceptClients(int qid, struct queue * pq)
         printf("server> New request: [%s]\n", buffer.mtext);
 
         // Grab the filename and pid
-        parseClientRequest(buffer.mtext, &pid, &priority, filename);
-        fp = open_file(filename, "r");
-
-        // If the file couldn't be oppened
-        if (fp == NULL)
-        {
-            // Respond with an error
-            buffer.mtype = pid;
-            strcpy(buffer.mtext, "Error: Could not open file");
-            buffer.mlen = 27;
-            if (send_message(qid, &buffer) == -1)
-            {
-                perror("Problem sending error message to client");
-                return;
-            }
-        }
-        else
-        {
-            tmp = pq->size;
-            if (addClientToQueue(pq, pid, priority, fp) == tmp)
-            {
-                perror("Realloc error");
-                return;
-            }
-            printf("server> New client %d added\n", pid);
-            fflush(stdout);
-        }
+        memset(filename, 0, MSGSIZE);
+        parseClientRequest(buffer.mtext, pPid, pPriority, filename);
+        return 1;
     }
+
+    return 0;
 }
 
-
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION:            parseClientRequest
+--
+-- DATE:                March 5, 2018
+--
+-- REVISIONS:           N/A
+--
+-- DESIGNER:            Benny Wang
+--
+-- PROGRAMMER:          Benny Wang
+--
+-- INTERFACE:           void parseClientRequest (const char * message, int * pid, int * priority, char * filename)
+--                          const char * message: The message sent to the server by the client.
+--                          int * pid: Where the parsed process id will be placed.
+--                          int * priority: Where the parsed priority value will be placed.
+--                          char * filename: Where the pared filename will be placed.
+--
+-- RETURNS:             void.
+--
+-- NOTES:
+-- Parsed the client's initial request message into its process id, priority and filename.
+----------------------------------------------------------------------------------------------------------------------*/
 void parseClientRequest(const char * message, int * pid, int * priority, char * filename)
 {
     int i;
@@ -196,74 +331,4 @@ void parseClientRequest(const char * message, int * pid, int * priority, char * 
     *pid = atoi(pidStart);
     *priority = atoi(priorityStart);
     memcpy(filename, fileStart, strlen(fileStart));
-}
-
-
-int addClientToQueue(struct queue * pq, int pid, int priority, FILE * file)
-{
-    struct client_data client;
-    struct client_data * oldQueue;
-
-    client.pid = pid;
-    client.finished = 0;
-    client.priority = priority;
-    client.file = file;
-
-    pthread_mutex_lock(&mutex);
-    oldQueue = pq->q;
-    pq->q = (struct client_data *)realloc(pq->q, (pq->size + 1) * sizeof(struct client_data));
-    if (pq->q == NULL)
-    {
-        pq->q = oldQueue;
-    }
-    else
-    {
-        pq->q[pq->size] = client;
-        pq->size++;
-    }
-    pthread_mutex_unlock(&mutex);
-
-    return pq->size;
-}
-
-
-int removeFinishedClients(struct queue * pq)
-{
-    int i;
-    int j;
-    int x;
-
-    x = 0;
-    pthread_mutex_lock(&mutex);
-    for (i = pq->size; i > 0; i--)
-    {
-        if (pq->q[i - 1].finished)
-        {
-            close_file_unsafe(&(pq->q[i - 1].file));
-
-            for (j = i - 1; j < pq->size - 1; j++)   
-            {
-                pq->q[j] = pq->q[j + 1];
-            }
-
-            x++;
-        }
-    }
-    pq->size -= x;
-    pq->q = (struct client_data *)realloc(pq->q, sizeof(struct client_data) * pq->size);
-    pthread_mutex_unlock(&mutex);
-
-    return x;
-}
-
-
-int clearQueue(struct queue * pq)
-{
-    int i;
-    for (i = 0; i < pq->size; i++)
-    {
-        close_file(&(pq->q[i].file));
-    }
-    free(pq->q);
-    return 1;
 }
